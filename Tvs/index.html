@@ -307,7 +307,7 @@ function render() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div class="badge"><i></i>${isOn ? 'ONLINE':'OFFLINE'}</div>
-          <div class="tv-menu"><button class="tv-menu-btn" title="Opções" >⋮</button><div class="tv-menu-content"><button data-id="${esc(id)}" onclick="editarUrl(this.dataset.id)">✎ URL esperada</button><button data-id="${esc(id)}" onclick="abrirUrls(this.dataset.id)">🌐 Abrir URLs</button><button data-id="${esc(id)}" onclick="atualizarExtensao(this.dataset.id)">🔄 Atualizar extensão</button><button class="danger" data-id="${esc(id)}" onclick="excluirTv(this.dataset.id)">🗑 Excluir painel</button></div></div>
+          <div class="tv-menu"><button class="tv-menu-btn" title="Opções" >⋮</button><div class="tv-menu-content"><button data-id="${esc(id)}" onclick="editarUrl(this.dataset.id)">✎ URL esperada</button><button data-id="${esc(id)}" onclick="abrirUrls(this.dataset.id)">🌐 Abrir URLs</button><button class="danger" data-id="${esc(id)}" onclick="excluirTv(this.dataset.id)">🗑 Excluir painel</button></div></div>
         </div>
       </div>
       <div class="info">
@@ -402,34 +402,6 @@ async function salvarUrl(id) {
     render();
   } catch (e) {
     alert('Erro ao salvar URL esperada: ' + e.message);
-  }
-}
-
-async function atualizarExtensao(maquinaId) {
-  const m = maquinas.find(item => (item.id || item.maquina_id) === maquinaId);
-  const nome = m?.nome || maquinaId;
-
-  if (!confirm(`Enviar atualização da extensão somente para "${nome}"? A TV poderá reiniciar o Chrome durante o processo.`)) {
-    return;
-  }
-
-  try {
-    const r = await fetch('/api/tvs-comando', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        maquina_id:maquinaId,
-        tipo:'atualizar_extensao',
-        payload:{}
-      })
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
-
-    alert(`Atualização enviada para "${nome}". Somente este painel será atualizado.`);
-  } catch(e) {
-    alert('Erro ao enviar atualização: ' + e.message);
   }
 }
 
