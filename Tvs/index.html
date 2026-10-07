@@ -35,8 +35,8 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 .tv.offline{border-color:rgba(239,90,90,.35)}
 .tv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .tv-name{font-size:1.05rem;font-weight:700}
-.tv-id{font: .72rem monospace;color:var(--dim);margin-top:3px}
-.badge{display:flex;align-items:center;gap:5px;font: .7rem monospace;padding:4px 7px;border-radius:999px;border:1px solid var(--line)}
+.tv-id{font:.72rem monospace;color:var(--dim);margin-top:3px}
+.badge{display:flex;align-items:center;gap:5px;font:.7rem monospace;padding:4px 7px;border-radius:999px;border:1px solid var(--line)}
 .badge i{width:7px;height:7px;border-radius:50%;background:var(--dim)}
 .online .badge i{background:var(--green);box-shadow:0 0 8px rgba(53,208,127,.6)}
 .offline .badge i{background:var(--red)}
@@ -52,8 +52,24 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 .tv{min-width:0}
 .grid{align-items:start}
 .empty{padding:35px;text-align:center;color:var(--dim)}
-#error{color:var(--red);font: .75rem monospace;margin-top:8px}
-@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}.toolbar{flex-direction:column;align-items:stretch}.toolbar-left,.toolbar-right{flex-wrap:wrap}}
+#error{color:var(--red);font:.75rem monospace;margin-top:8px}
+.command-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.command-panel h2{font:700 1rem monospace;margin:0 0 6px}
+.command-panel p{font-size:.78rem;color:var(--dim);margin:0 0 12px}
+.command-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.command-fields label{font-size:.7rem;color:var(--dim);display:flex;flex-direction:column;gap:5px}
+.command-fields input{width:100%;font-size:.78rem}
+.command-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.command-output{display:flex;gap:8px;margin-top:10px}
+.command-output textarea{flex:1;min-height:72px;resize:vertical;background:#090d15;border:1px solid var(--line);color:var(--text);border-radius:7px;padding:9px;font: .72rem monospace}
+.copy-ok{color:var(--green);font:.72rem monospace;align-self:center}
+@media(max-width:800px){
+  .summary{grid-template-columns:repeat(2,1fr)}
+  header{align-items:flex-start}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar-left,.toolbar-right{flex-wrap:wrap}
+  .command-fields{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -76,6 +92,30 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   <div class="card"><div class="stat-label">Offline</div><div class="stat-value bad" id="offline">0</div></div>
   <div class="card"><div class="stat-label">Total</div><div class="stat-value" id="total">0</div></div>
   <div class="card"><div class="stat-label">Última atualização</div><div class="stat-value" id="updated" style="font-size:1rem">--:--:--</div></div>
+</section>
+
+<section class="command-panel">
+  <h2>⚙ Comando de instalação da TV</h2>
+  <p>Preencha os dados e copie o PowerShell pronto para executar na máquina. O token não é salvo no navegador.</p>
+  <div class="command-fields">
+    <label>Nome da TV
+      <input id="cmdNome" placeholder="TV Recepção">
+    </label>
+    <label>ID da máquina
+      <input id="cmdId" placeholder="tv-recepcao-01">
+    </label>
+    <label>ADMIN token
+      <input id="cmdToken" type="password" autocomplete="off" placeholder="Cole o ADMIN token">
+    </label>
+  </div>
+  <div class="command-actions">
+    <button class="primary" onclick="copiarComando()">⧉ Copiar comando PowerShell</button>
+    <button onclick="limparComando()">Limpar</button>
+    <span class="copy-ok" id="copyStatus"></span>
+  </div>
+  <div class="command-output">
+    <textarea id="cmdPreview" readonly placeholder="O comando aparecerá aqui..."></textarea>
+  </div>
 </section>
 
 <div class="toolbar">
@@ -246,6 +286,58 @@ async function comando(maquinaId, tipo) {
     alert('Erro ao enviar comando: ' + e.message);
   }
 }
+
+function montarComando() {
+  const nome = document.getElementById('cmdNome').value.trim();
+  const id = document.getElementById('cmdId').value.trim();
+  const token = document.getElementById('cmdToken').value.trim();
+
+  if (!nome || !id || !token) return '';
+
+  const safe = v => v.replace(/'/g, "''");
+  return `$b = '$env:USERPROFILE\Desktop\infrahub-install.ps1'; irm 'https://infrahub-monitor-api.vercel.app/cadastrar-maquina' | iex; cadastrar-maquina -Nome '${safe(nome)}' -MaquinaId '${safe(id)}' -AdminToken '${safe(token)}'`;
+}
+
+function atualizarPreview() {
+  const preview = document.getElementById('cmdPreview');
+  const comando = montarComando();
+  preview.value = comando || 'Preencha Nome da TV, ID da máquina e ADMIN token.';
+  document.getElementById('copyStatus').textContent = '';
+}
+
+function copiarComando() {
+  const comando = montarComando();
+  const status = document.getElementById('copyStatus');
+
+  if (!comando) {
+    status.textContent = 'Preencha os 3 campos.';
+    status.className = 'copy-ok bad';
+    atualizarPreview();
+    return;
+  }
+
+  navigator.clipboard.writeText(comando)
+    .then(() => {
+      document.getElementById('cmdPreview').value = comando;
+      status.textContent = '✓ Copiado. É só colar no PowerShell.';
+      status.className = 'copy-ok';
+    })
+    .catch(() => {
+      document.getElementById('cmdPreview').focus();
+      document.getElementById('cmdPreview').select();
+      status.textContent = 'Seleção feita. Ctrl+C para copiar.';
+      status.className = 'copy-ok';
+    });
+}
+
+function limparComando() {
+  ['cmdNome','cmdId','cmdToken'].forEach(id => document.getElementById(id).value = '');
+  atualizarPreview();
+}
+
+['cmdNome','cmdId','cmdToken'].forEach(id => {
+  document.getElementById(id).addEventListener('input', atualizarPreview);
+});
 
 function tick() {
   document.getElementById('clock').textContent = new Date().toLocaleTimeString('pt-BR');
