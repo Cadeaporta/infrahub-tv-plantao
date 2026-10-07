@@ -35,7 +35,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 
 .tv-menu{position:relative;z-index:20;margin-left:2px}.tv-menu-btn{cursor:pointer;font-size:1.35rem;line-height:1;color:var(--dim);padding:4px 8px;border-radius:7px;border:1px solid transparent;background:transparent}.tv-menu-btn:hover,.tv-menu:focus-within .tv-menu-btn{background:var(--bg);color:var(--text);border-color:var(--line)}.tv-menu-content{display:none;position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);z-index:999;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px;min-width:175px;box-shadow:0 10px 30px rgba(0,0,0,.5)}.tv-menu:focus-within .tv-menu-content{display:block}.tv-menu-content button{width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;color:var(--text);cursor:pointer;white-space:nowrap}.tv-menu-content button:hover{background:var(--bg);color:var(--accent)}.tv-menu-content .danger:hover{color:var(--red)}
-.url-edit[hidden]{display:none !important}
+.url-edit[hidden]{display:none !important}\n#url-modal[hidden]{display:none !important}
 .tv{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:15px;position:relative}
 .tv.online{border-color:rgba(53,208,127,.35)}
 .tv.offline{border-color:rgba(239,90,90,.35)}
@@ -462,7 +462,7 @@ function enviarAbrirUrls() {
   const manual = document.getElementById('url-manual').value;
 
   const escolhida = select.value.trim();
-  const digitadas = manual.split(/\\r?\\n/)
+  const digitadas = manual.split(/\r?\n/)
     .map(url => url.trim())
     .filter(Boolean);
 
