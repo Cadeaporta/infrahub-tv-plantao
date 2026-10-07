@@ -353,7 +353,7 @@ function montarComando() {
   if (!nome || !id || !token) return '';
 
   const safe = v => v.replace(/'/g, "''");
-  return `$b = '$env:USERPROFILE\Desktop\infrahub-install.ps1'; irm 'https://infrahub-monitor-api.vercel.app/cadastrar-maquina' | iex; cadastrar-maquina -Nome '${safe(nome)}' -MaquinaId '${safe(id)}' -AdminToken '${safe(token)}'`;
+  return `$payload = @{ id='${safe(id)}'; nome='${safe(nome)}' } | ConvertTo-Json; $r = Invoke-RestMethod -Method POST -Uri 'https://infrahub-monitor-api.vercel.app/api/cadastrar-maquina' -Headers @{ 'x-admin-secret'='${safe(token)}' } -ContentType 'application/json' -Body $payload; Write-Host "TV cadastrada: $($r.maquina_id)"; Write-Host "TOKEN DA TV: $($r.token)"`;
 }
 
 function atualizarPreview() {
