@@ -1,7 +1,7 @@
 const API_URL = 'https://infrahub-monitor-api.vercel.app';
 
 module.exports = async (req, res) => {
-  if (!['GET', 'PUT'].includes(req.method)) {
+  if (!['GET', 'PUT', 'DELETE'].includes(req.method)) {
     return res.status(405).json({ erro: 'method not allowed' });
   }
 
@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
         'Content-Type': 'application/json',
         'x-admin-secret': process.env.ADMIN_SECRET
       },
-      ...(req.method === 'PUT'
+      ...(['PUT', 'DELETE'].includes(req.method)
         ? { body: JSON.stringify(req.body || {}) }
         : {})
     });
