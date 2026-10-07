@@ -159,16 +159,16 @@ const UNIDADES = [
 ];
 
 function detectarUnidade(m) {
-  const texto = `${m.unidade || ''} ${m.nome || ''} ${m.id || m.maquina_id || ''}`.toLowerCase();
+  const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
+  return salvas[m.id || m.maquina_id] || '';
+}
 
-  if (texto.includes('nova campinas') || texto.includes('nova-campinas') || texto.includes('novacampinas')) return 'Nova Campinas';
-  if (texto.includes('guanabara')) return 'Guanabara';
-  if (texto.includes('casa de saude') || texto.includes('casa-de-saude') || texto.includes('casadesaude')) return 'Casa de Saude';
-  if (texto.includes('hospital care') || texto.includes('hospitalcare')) return 'Hospital Care';
-  if (texto.includes('indaiatuba')) return 'Indaiatuba';
-  if (/(^|[^a-z])hvc([^a-z]|$)/.test(texto) || texto.includes('vera cruz') || texto.includes('vera-cruz') || texto.includes('veracruz')) return 'HVC';
-
-  return 'HVC';
+function salvarUnidadeLocal(id, unidade) {
+  const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
+  if (unidade) salvas[id] = unidade;
+  else delete salvas[id];
+  localStorage.setItem('infrahub_tv_unidades', JSON.stringify(salvas));
+  render();
 }
 
 function selecionarUnidade(unidade) {
@@ -239,6 +239,13 @@ function render() {
         <div class="row"><span>Heartbeat</span><strong>${esc(heartbeat(m))}</strong></div>
         <div class="row"><span>URL atual</span><strong title="${esc(atual)}">${esc(atual.length > 35 ? atual.slice(0,35)+'…' : atual)}</strong></div>
         <div class="row"><span>URL esperada</span><strong class="${urlOk === false ? 'bad' : urlOk === true ? 'good':''}">${urlOk === true ? '✓ Correta' : urlOk === false ? '✕ Diferente' : esc(esperada)}</strong></div>
+        <div class="row">
+          <span>Unidade</span>
+          <select onchange="salvarUnidadeLocal('${esc(id)}', this.value)" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:5px 7px;font:.72rem monospace">
+            <option value="">Sem unidade</option>
+            ${UNIDADES.map(u => `<option value="${esc(u)}" ${detectarUnidade(m) === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}
+          </select>
+        </div>
         <div class="url-edit" id="edit-${esc(id)}" hidden>
           <input id="url-${esc(id)}" type="url" value="${esc(esperada === '—' ? '' : esperada)}" placeholder="https://exemplo.vercel.app">
           <button onclick="salvarUrl('${esc(id)}')">Salvar</button>
