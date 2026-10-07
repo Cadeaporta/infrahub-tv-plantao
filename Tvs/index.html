@@ -200,15 +200,61 @@ function heartbeat(m) {
   return new Date(hb).toLocaleString('pt-BR');
 }
 
+function lerExcluidas() {
+  try {
+    const valor = JSON.parse(localStorage.getItem('infrahub_tv_excluidas') || '[]');
+    return Array.isArray(valor) ? valor : [];
+  } catch {
+    return [];
+  }
+}
+
+function excluirTv(id) {
+  const nome = maquinas.find(m => (m.id || m.maquina_id) === id)?.nome || id;
+  if (!confirm(`Excluir o painel "${nome}" do banco de dados? Isso remove a TV e os comandos pendentes dela permanentemente.`)) return;
+
+  const excluidas = lerExcluidas();
+  if (!excluidas.includes(id)) excluidas.push(id);
+  localStorage.setItem('infrahub_tv_excluidas', JSON.stringify(excluidas));
+
+  const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
+  delete salvas[id];
+  localStorage.setItem('infrahub_tv_unidades', JSON.stringify(salvas));
+
+  excluirTvBanco(id);
+}
+
+async function excluirTvBanco(id) {
+  try {
+    const r = await fetch('/api/tvs-maquinas', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+
+    maquinas = maquinas.filter(m => (m.id || m.maquina_id) !== id);
+    render();
+  } catch (e) {
+    const excluidas = lerExcluidas().filter(item => item !== id);
+    localStorage.setItem('infrahub_tv_excluidas', JSON.stringify(excluidas));
+    alert('Erro ao excluir painel do banco: ' + e.message);
+    render();
+  }
+}
+
 function render() {
+  const excluidas = lerExcluidas();
+  const ativos = maquinas.filter(m => !excluidas.includes(m.id || m.maquina_id));
   const filtro = document.getElementById('filtro').value.toLowerCase();
-  const lista = maquinas.filter(m => {
+  const lista = ativos.filter(m => {
     const unidade = detectarUnidade(m);
     const texto = `${m.nome||''} ${m.id||m.maquina_id||''} ${m.unidade||''}`.toLowerCase();
     const bateUnidade = unidadeSelecionada === 'Todas' || unidade === unidadeSelecionada;
     return bateUnidade && texto.includes(filtro);
   });
-  const visiveis = maquinas.filter(m => unidadeSelecionada === 'Todas' || detectarUnidade(m) === unidadeSelecionada);
+  const visiveis = ativos.filter(m => unidadeSelecionada === 'Todas' || detectarUnidade(m) === unidadeSelecionada);
   const on = visiveis.filter(online).length;
   document.getElementById('online').textContent = on;
   document.getElementById('offline').textContent = visiveis.length - on;
@@ -254,7 +300,13 @@ function render() {
       </div>
       <div class="actions">
         <button onclick="comando('${esc(id)}','reload')">↻ Recarregar</button>
-        <button onclick="editarUrl('${esc(id)}')">✎ URL esperada</button>
+        <details class="tv-menu">
+          <summary title="Opções">⋮</summary>
+          <div class="tv-menu-content">
+            <button onclick="editarUrl('${esc(id)}'); this.closest('details').open=false">✎ URL esperada</button>
+            <button class="danger" onclick="excluirTv('${esc(id)}'); this.closest('details').open=false">🗑 Excluir painel</button>
+          </div>
+        </details>
       </div>
     </article>`;
   }).join('');
