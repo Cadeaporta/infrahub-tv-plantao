@@ -33,7 +33,8 @@ button{cursor:pointer;font-family:monospace;font-size:.75rem}
 button:hover{border-color:var(--accent);color:var(--accent)}
 button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-\n.tv-menu{position:absolute;top:10px;right:10px;z-index:3}.tv-menu summary{list-style:none;cursor:pointer;font-size:1.2rem;color:var(--dim);padding:2px 6px;border-radius:6px}.tv-menu summary::-webkit-details-marker{display:none}.tv-menu summary:hover{background:var(--bg);color:var(--text)}.tv-menu-content{position:absolute;right:0;top:30px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px;min-width:150px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.tv-menu-content button{width:100%;text-align:left;border:0;background:transparent;padding:8px;color:var(--text);cursor:pointer}.tv-menu-content button:hover{background:var(--bg);color:var(--accent)}.tv-menu-content .danger:hover{color:var(--red)}\n.tv{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:15px;position:relative}
+\n.tv-menu{position:relative;z-index:20;margin-left:2px}.tv-menu summary{list-style:none;cursor:pointer;font-size:1.35rem;line-height:1;color:var(--dim);padding:4px 8px;border-radius:7px;border:1px solid transparent}.tv-menu summary::-webkit-details-marker{display:none}.tv-menu summary:hover{background:var(--bg);color:var(--text);border-color:var(--line)}.tv-menu-content{position:absolute;right:0;top:calc(100% + 5px);z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px;min-width:175px;box-shadow:0 10px 30px rgba(0,0,0,.5)}.tv-menu-content button{width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;color:var(--text);cursor:pointer;white-space:nowrap}.tv-menu-content button:hover{background:var(--bg);color:var(--accent)}.tv-menu-content .danger:hover{color:var(--red)}
+.url-edit[hidden]{display:none !important}\n.tv{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:15px;position:relative}
 .tv.online{border-color:rgba(53,208,127,.35)}
 .tv.offline{border-color:rgba(239,90,90,.35)}
 .tv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
@@ -279,7 +280,16 @@ function render() {
           <div class="tv-name">${esc(m.nome || id)}</div>
           <div class="tv-id">${esc(id)}</div>
         </div>
-        <div class="badge"><i></i>${isOn ? 'ONLINE':'OFFLINE'}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="badge"><i></i>${isOn ? 'ONLINE':'OFFLINE'}</div>
+          <details class="tv-menu">
+            <summary title="Opções">⋮</summary>
+            <div class="tv-menu-content">
+              <button onclick="editarUrl('${esc(id)}'); this.closest('details').open=false">✎ URL esperada</button>
+              <button class="danger" onclick="excluirTv('${esc(id)}'); this.closest('details').open=false">🗑 Excluir painel</button>
+            </div>
+          </details>
+        </div>
       </div>
       <div class="info">
         <div class="row"><span>Heartbeat</span><strong>${esc(heartbeat(m))}</strong></div>
@@ -300,13 +310,6 @@ function render() {
       </div>
       <div class="actions">
         <button onclick="comando('${esc(id)}','reload')">↻ Recarregar</button>
-        <details class="tv-menu">
-          <summary title="Opções">⋮</summary>
-          <div class="tv-menu-content">
-            <button onclick="editarUrl('${esc(id)}'); this.closest('details').open=false">✎ URL esperada</button>
-            <button class="danger" onclick="excluirTv('${esc(id)}'); this.closest('details').open=false">🗑 Excluir painel</button>
-          </div>
-        </details>
       </div>
     </article>`;
   }).join('');
