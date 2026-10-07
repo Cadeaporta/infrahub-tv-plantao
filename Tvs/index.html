@@ -148,7 +148,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 <div id="error"></div>
 <main class="grid" id="grid"><div class="empty">Carregando TVs...</div></main>
 
-<div id="url-modal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px">
+<div id="url-modal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:none;align-items:center;justify-content:center;padding:18px">
   <div style="width:min(560px,100%);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.55)">
     <h2 style="font:700 1rem monospace;margin:0 0 6px">🌐 Abrir URLs</h2>
     <p id="url-modal-tv" style="font-size:.78rem;color:var(--dim);margin:0 0 14px"></p>
@@ -446,12 +446,12 @@ function abrirUrls(maquinaId) {
 
   manual.value = '';
   document.getElementById('url-modal-tv').textContent = `TV: ${nome}. Selecione uma URL cadastrada ou digite uma ou mais manualmente.`;
-  document.getElementById('url-modal').hidden = false;
+  document.getElementById('url-modal').hidden = false; document.getElementById('url-modal').style.display = 'flex';
   select.focus();
 }
 
 function fecharAbrirUrls() {
-  document.getElementById('url-modal').hidden = true;
+  document.getElementById('url-modal').hidden = true; document.getElementById('url-modal').style.display = 'none';
   maquinaUrlsAtual = null;
 }
 
