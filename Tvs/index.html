@@ -44,8 +44,13 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 .row{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:.78rem}
 .row span:first-child{color:var(--dim)}
 .good{color:var(--green)} .bad{color:var(--red)}
-.actions{display:flex;gap:7px}
-.actions button{flex:1}
+.actions{display:flex;gap:7px;flex-wrap:wrap}
+.actions button{flex:1;min-width:120px}
+.url-edit{display:flex;gap:6px;margin-top:8px}
+.url-edit input{width:100%;min-width:0;font-size:.72rem}
+.url-edit button{flex:0 0 auto}
+.tv{min-width:0}
+.grid{align-items:start}
 .empty{padding:35px;text-align:center;color:var(--dim)}
 #error{color:var(--red);font: .75rem monospace;margin-top:8px}
 @media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}.toolbar{flex-direction:column;align-items:stretch}.toolbar-left,.toolbar-right{flex-wrap:wrap}}
@@ -143,9 +148,15 @@ function render() {
         <div class="row"><span>Heartbeat</span><strong>${esc(heartbeat(m))}</strong></div>
         <div class="row"><span>URL atual</span><strong title="${esc(atual)}">${esc(atual.length > 35 ? atual.slice(0,35)+'…' : atual)}</strong></div>
         <div class="row"><span>URL esperada</span><strong class="${urlOk === false ? 'bad' : urlOk === true ? 'good':''}">${urlOk === true ? '✓ Correta' : urlOk === false ? '✕ Diferente' : esc(esperada)}</strong></div>
+        <div class="url-edit" id="edit-${esc(id)}" hidden>
+          <input id="url-${esc(id)}" type="url" value="${esc(esperada === '—' ? '' : esperada)}" placeholder="https://exemplo.vercel.app">
+          <button onclick="salvarUrl('${esc(id)}')">Salvar</button>
+          <button onclick="cancelarUrl('${esc(id)}')">Cancelar</button>
+        </div>
       </div>
       <div class="actions">
         <button onclick="comando('${esc(id)}','reload')">↻ Recarregar</button>
+        <button onclick="editarUrl('${esc(id)}')">✎ URL esperada</button>
       </div>
     </article>`;
   }).join('');
@@ -168,6 +179,57 @@ async function carregar() {
     err.textContent = `Não foi possível carregar as TVs: ${e.message}`;
     maquinas = [];
     render();
+  }
+}
+
+function editarUrl(id) {
+  const el = document.getElementById(`edit-${id}`);
+  const input = document.getElementById(`url-${id}`);
+  if (!el || !input) return;
+  el.hidden = false;
+  input.focus();
+  input.select();
+}
+
+function cancelarUrl(id) {
+  const el = document.getElementById(`edit-${id}`);
+  if (el) el.hidden = true;
+}
+
+async function salvarUrl(id) {
+  const input = document.getElementById(`url-${id}`);
+  const url = input?.value.trim() || '';
+
+  if (!url) {
+    alert('Informe a URL esperada.');
+    return;
+  }
+
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
+  } catch {
+    alert('URL inválida. Use http:// ou https://');
+    return;
+  }
+
+  try {
+    const r = await fetch('/api/tvs-maquinas', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, url_esperada: url })
+    });
+
+    const data = await r.json().catch(() => ({}));
+
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+
+    const m = maquinas.find(item => (item.id || item.maquina_id) === id);
+    if (m) m.url_esperada = data.maquina?.url_esperada || url;
+
+    render();
+  } catch (e) {
+    alert('Erro ao salvar URL esperada: ' + e.message);
   }
 }
 
