@@ -402,7 +402,7 @@ async function abrirUrls(maquinaId) {
   if (texto === null) return;
 
   const urls = [...new Set(
-    texto.split(/\\r?\\n/)
+    texto.split(/\r?\n/)
       .map(url => url.trim())
       .filter(Boolean)
   )];
