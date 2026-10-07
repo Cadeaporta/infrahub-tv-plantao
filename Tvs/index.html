@@ -148,6 +148,28 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 <div id="error"></div>
 <main class="grid" id="grid"><div class="empty">Carregando TVs...</div></main>
 
+<div id="url-modal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px">
+  <div style="width:min(560px,100%);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.55)">
+    <h2 style="font:700 1rem monospace;margin:0 0 6px">🌐 Abrir URLs</h2>
+    <p id="url-modal-tv" style="font-size:.78rem;color:var(--dim);margin:0 0 14px"></p>
+    <label style="font-size:.72rem;color:var(--dim);display:flex;flex-direction:column;gap:6px">
+      Selecionar URL
+      <select id="url-select" style="width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:8px;font: .78rem monospace">
+        <option value="">Escolha uma URL...</option>
+      </select>
+    </label>
+    <div style="font-size:.7rem;color:var(--dim);text-align:center;margin:10px 0">ou</div>
+    <label style="font-size:.72rem;color:var(--dim);display:flex;flex-direction:column;gap:6px">
+      Digitar URLs manualmente
+      <textarea id="url-manual" rows="4" placeholder="Uma URL por linha&#10;https://weknow...&#10;https://munai...&#10;https://quality24..." style="width:100%;resize:vertical;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:9px;font:.75rem monospace"></textarea>
+    </label>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button type="button" onclick="fecharAbrirUrls()">Cancelar</button>
+      <button type="button" class="primary" onclick="enviarAbrirUrls()">🌐 Abrir</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let maquinas = [];
 let unidadeSelecionada = 'Todas';
@@ -395,20 +417,62 @@ async function comando(maquinaId, tipo) {
     alert('Erro ao enviar comando: ' + e.message);
   }
 }
-async function abrirUrls(maquinaId) {
-  const texto = prompt(
-    'Digite uma URL por linha. Exemplo:\nhttps://weknow...\nhttps://munai...\nhttps://quality24...'
-  );
-  if (texto === null) return;
+let maquinaUrlsAtual = null;
 
-  const urls = [...new Set(
-    texto.split(/\r?\n/)
-      .map(url => url.trim())
-      .filter(Boolean)
-  )];
+function abrirUrls(maquinaId) {
+  const m = maquinas.find(item => (item.id || item.maquina_id) === maquinaId);
+  if (!m) {
+    alert('TV não encontrada.');
+    return;
+  }
+
+  maquinaUrlsAtual = maquinaId;
+
+  const select = document.getElementById('url-select');
+  const manual = document.getElementById('url-manual');
+  const nome = m.nome || maquinaId;
+  const esperada = m.url_esperada || m.urlEsperada || '';
+  const atual = m.url_atual || m.urlAtual || '';
+
+  select.innerHTML = '<option value="">Escolha uma URL...</option>';
+
+  if (esperada && /^https?:\\/\\//i.test(esperada)) {
+    select.insertAdjacentHTML('beforeend', `<option value="${esc(esperada)}">🏠 URL do painel · ${esc(esperada)}</option>`);
+  }
+
+  if (atual && atual !== esperada && /^https?:\\/\\//i.test(atual)) {
+    select.insertAdjacentHTML('beforeend', `<option value="${esc(atual)}">🖥 URL atual · ${esc(atual)}</option>`);
+  }
+
+  manual.value = '';
+  document.getElementById('url-modal-tv').textContent = `TV: ${nome}. Selecione uma URL cadastrada ou digite uma ou mais manualmente.`;
+  document.getElementById('url-modal').hidden = false;
+  select.focus();
+}
+
+function fecharAbrirUrls() {
+  document.getElementById('url-modal').hidden = true;
+  maquinaUrlsAtual = null;
+}
+
+function enviarAbrirUrls() {
+  if (!maquinaUrlsAtual) return;
+
+  const select = document.getElementById('url-select');
+  const manual = document.getElementById('url-manual').value;
+
+  const escolhida = select.value.trim();
+  const digitadas = manual.split(/\\r?\\n/)
+    .map(url => url.trim())
+    .filter(Boolean);
+
+  const urls = [...new Set([
+    ...(escolhida ? [escolhida] : []),
+    ...digitadas
+  ])];
 
   if (!urls.length) {
-    alert('Nenhuma URL informada.');
+    alert('Selecione uma URL ou digite pelo menos uma URL.');
     return;
   }
 
@@ -427,6 +491,10 @@ async function abrirUrls(maquinaId) {
     }
   }
 
+  enviarComandoAbrirUrls(maquinaUrlsAtual, urls);
+}
+
+async function enviarComandoAbrirUrls(maquinaId, urls) {
   try {
     const r = await fetch('/api/tvs-comando', {
       method:'POST',
@@ -439,6 +507,8 @@ async function abrirUrls(maquinaId) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+
+    fecharAbrirUrls();
     alert(`${urls.length} URL(s) enviada(s) para a TV.`);
   } catch(e) {
     alert('Erro ao enviar URLs: ' + e.message);
