@@ -23,6 +23,9 @@ h1{font-family:monospace;margin:0;font-size:1.7rem}
 .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
 .stat-label{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 .stat-value{font-family:monospace;font-size:1.8rem;font-weight:700;margin-top:4px}
+.unit-tabs{display:flex;gap:7px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
+.unit-tab{white-space:nowrap}
+.unit-tab.active{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:700}
 .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
 .toolbar-left,.toolbar-right{display:flex;gap:8px;align-items:center}
 button,input{font:inherit;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px 10px}
@@ -69,6 +72,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   .toolbar{flex-direction:column;align-items:stretch}
   .toolbar-left,.toolbar-right{flex-wrap:wrap}
   .command-fields{grid-template-columns:1fr}
+  .unit-tabs{margin-right:-18px}
 }
 </style>
 </head>
@@ -118,6 +122,16 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   </div>
 </section>
 
+<nav class="unit-tabs" aria-label="Unidades">
+  <button class="unit-tab active" data-unit="Todas" onclick="selecionarUnidade('Todas')">Todas</button>
+  <button class="unit-tab" data-unit="Nova Campinas" onclick="selecionarUnidade('Nova Campinas')">Nova Campinas</button>
+  <button class="unit-tab" data-unit="Guanabara" onclick="selecionarUnidade('Guanabara')">Guanabara</button>
+  <button class="unit-tab" data-unit="Casa de Saude" onclick="selecionarUnidade('Casa de Saude')">Casa de Saúde</button>
+  <button class="unit-tab" data-unit="HVC" onclick="selecionarUnidade('HVC')">HVC</button>
+  <button class="unit-tab" data-unit="Hospital Care" onclick="selecionarUnidade('Hospital Care')">Hospital Care</button>
+  <button class="unit-tab" data-unit="Indaiatuba" onclick="selecionarUnidade('Indaiatuba')">Indaiatuba</button>
+</nav>
+
 <div class="toolbar">
   <div class="toolbar-left">
     <button class="primary" onclick="carregar()">↻ Atualizar</button>
@@ -133,6 +147,37 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 
 <script>
 let maquinas = [];
+let unidadeSelecionada = 'Todas';
+
+const UNIDADES = [
+  'Nova Campinas',
+  'Guanabara',
+  'Casa de Saude',
+  'HVC',
+  'Hospital Care',
+  'Indaiatuba'
+];
+
+function detectarUnidade(m) {
+  const texto = `${m.unidade || ''} ${m.nome || ''} ${m.id || m.maquina_id || ''}`.toLowerCase();
+
+  if (texto.includes('nova campinas') || texto.includes('nova-campinas') || texto.includes('novacampinas')) return 'Nova Campinas';
+  if (texto.includes('guanabara')) return 'Guanabara';
+  if (texto.includes('casa de saude') || texto.includes('casa-de-saude') || texto.includes('casadesaude')) return 'Casa de Saude';
+  if (texto.includes('hospital care') || texto.includes('hospitalcare')) return 'Hospital Care';
+  if (texto.includes('indaiatuba')) return 'Indaiatuba';
+  if (/(^|[^a-z])hvc([^a-z]|$)/.test(texto) || texto.includes('vera cruz') || texto.includes('vera-cruz') || texto.includes('veracruz')) return 'HVC';
+
+  return 'HVC';
+}
+
+function selecionarUnidade(unidade) {
+  unidadeSelecionada = unidade;
+  document.querySelectorAll('.unit-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.unit === unidade);
+  });
+  render();
+}
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -157,11 +202,17 @@ function heartbeat(m) {
 
 function render() {
   const filtro = document.getElementById('filtro').value.toLowerCase();
-  const lista = maquinas.filter(m => `${m.nome||''} ${m.id||m.maquina_id||''}`.toLowerCase().includes(filtro));
-  const on = maquinas.filter(online).length;
+  const lista = maquinas.filter(m => {
+    const unidade = detectarUnidade(m);
+    const texto = `${m.nome||''} ${m.id||m.maquina_id||''} ${m.unidade||''}`.toLowerCase();
+    const bateUnidade = unidadeSelecionada === 'Todas' || unidade === unidadeSelecionada;
+    return bateUnidade && texto.includes(filtro);
+  });
+  const visiveis = maquinas.filter(m => unidadeSelecionada === 'Todas' || detectarUnidade(m) === unidadeSelecionada);
+  const on = visiveis.filter(online).length;
   document.getElementById('online').textContent = on;
-  document.getElementById('offline').textContent = maquinas.length - on;
-  document.getElementById('total').textContent = maquinas.length;
+  document.getElementById('offline').textContent = visiveis.length - on;
+  document.getElementById('total').textContent = visiveis.length;
   document.getElementById('updated').textContent = new Date().toLocaleTimeString('pt-BR');
 
   const grid = document.getElementById('grid');
