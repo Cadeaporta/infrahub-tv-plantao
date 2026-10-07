@@ -437,11 +437,11 @@ function abrirUrls(maquinaId) {
 
   select.innerHTML = '<option value="">Escolha uma URL...</option>';
 
-  if (esperada && /^https?:\\/\\//i.test(esperada)) {
+  if (esperada && /^https?:\/\//i.test(esperada)) {
     select.insertAdjacentHTML('beforeend', `<option value="${esc(esperada)}">🏠 URL do painel · ${esc(esperada)}</option>`);
   }
 
-  if (atual && atual !== esperada && /^https?:\\/\\//i.test(atual)) {
+  if (atual && atual !== esperada && /^https?:\/\//i.test(atual)) {
     select.insertAdjacentHTML('beforeend', `<option value="${esc(atual)}">🖥 URL atual · ${esc(atual)}</option>`);
   }
 
