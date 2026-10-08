@@ -185,16 +185,35 @@ const UNIDADES = [
 ];
 
 function detectarUnidade(m) {
-  const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
-  return salvas[m.id || m.maquina_id] || '';
+  if (m.unidade) return m.unidade;
+  try {
+    const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
+    return salvas[m.id || m.maquina_id] || '';
+  } catch {
+    return '';
+  }
+}
+
+async function salvarUnidade(id, unidade) {
+  try {
+    const r = await fetch('/api/tvs-maquinas', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, unidade })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+
+    const m = maquinas.find(item => (item.id || item.maquina_id) === id);
+    if (m) m.unidade = unidade || '';
+    render();
+  } catch (e) {
+    alert('Erro ao salvar unidade: ' + e.message);
+  }
 }
 
 function salvarUnidadeLocal(id, unidade) {
-  const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
-  if (unidade) salvas[id] = unidade;
-  else delete salvas[id];
-  localStorage.setItem('infrahub_tv_unidades', JSON.stringify(salvas));
-  render();
+  salvarUnidade(id, unidade);
 }
 
 function selecionarUnidade(unidade) {
@@ -276,7 +295,7 @@ function render() {
   const filtro = document.getElementById('filtro').value.toLowerCase();
   const lista = ativos.filter(m => {
     const unidade = detectarUnidade(m);
-    const texto = `${m.nome||''} ${m.id||m.maquina_id||''} ${m.unidade||''}`.toLowerCase();
+    const texto = `${m.nome||''} ${m.id||m.maquina_id||''} ${detectarUnidade(m)}`.toLowerCase();
     const bateUnidade = unidadeSelecionada === 'Todas' || unidade === unidadeSelecionada;
     return bateUnidade && texto.includes(filtro);
   });
@@ -344,6 +363,28 @@ async function carregar() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     maquinas = Array.isArray(data) ? data : (data.maquinas || data.data || []);
+
+    // Migra a unidade antiga do localStorage para o banco automaticamente.
+    let salvas = {};
+    try {
+      salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
+    } catch {}
+
+    await Promise.all(maquinas
+      .filter(m => !m.unidade && salvas[m.id || m.maquina_id])
+      .map(async m => {
+        const id = m.id || m.maquina_id;
+        const unidade = salvas[id];
+        try {
+          const r = await fetch('/api/tvs-maquinas', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, unidade })
+          });
+          if (r.ok) m.unidade = unidade;
+        } catch {}
+      }));
+
     status.textContent = 'API: online';
     render();
   } catch (e) {
