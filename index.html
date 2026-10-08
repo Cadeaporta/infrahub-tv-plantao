@@ -123,9 +123,8 @@
   .membro-row:last-child { border-bottom: none; }
 
   .membro-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .membro-detalhes { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-  .membro-almoco { margin-right: auto; }
-  .membro-horario-acoes { display: flex; align-items: center; gap: 10px; }
+  .membro-horario-acoes { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+  .membro-almoco { margin-left: auto; margin-right: auto; }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
   .status-dot.ativo { background: var(--accent); animation: pulse 2s ease-in-out infinite; }
 
@@ -533,14 +532,12 @@
           <span class="status-dot ${presente ? 'ativo' : ''}"></span>
           <span class="membro-nome">${m.nome}</span>
         </div>
-        <div class="membro-detalhes">
-          <span class="membro-almoco" title="Início do almoço">Almoço: ${almoco}</span>
-          <div class="membro-horario-acoes">
-            <span class="membro-horario">${m.entrada}:00 – ${m.entrada + 9}:00</span>
-            <div class="membro-actions">
-              <button onclick="editarMembro('${m.id}')">Editar</button>
-              <button class="remover" onclick="removerMembro('${m.id}')">Remover</button>
-            </div>
+        <span class="membro-almoco" title="Início do almoço">Almoço: ${almoco}</span>
+        <div class="membro-horario-acoes">
+          <span class="membro-horario">${m.entrada}:00 – ${m.entrada + 9}:00</span>
+          <div class="membro-actions">
+            <button onclick="editarMembro('${m.id}')">Editar</button>
+            <button class="remover" onclick="removerMembro('${m.id}')">Remover</button>
           </div>
         </div>
       `;
