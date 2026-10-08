@@ -131,6 +131,16 @@
 
   .membro-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; }
   .membro-row:hover .membro-actions { opacity: 1; }
+  .membro-almoco { font-family: 'JetBrains Mono', monospace; color: var(--text-dim); font-size: 0.85rem; white-space: nowrap; }
+  .membro-row:hover .membro-almoco { display: none; }
+
+  .modal-editar-membro { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.65); }
+  .modal-editar-membro.aberto { display: flex; }
+  .modal-editar-card { width: min(100%, 380px); padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 12px 40px rgba(0,0,0,0.35); }
+  .modal-editar-card h3 { margin: 0 0 14px; }
+  .modal-editar-card label { display: block; margin: 10px 0 5px; color: var(--text-dim); font-size: 0.8rem; }
+  .modal-editar-card input, .modal-editar-card select { width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+  .modal-editar-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
   /* Plantão */
   .plantao-hoje {
@@ -382,8 +392,28 @@
 
 </div>
 
-<div class="scroll-area">
-  <div class="card">
+<div id="modalEditarMembro" class="modal-editar-membro" onclick="if(event.target === this) fecharEditarMembro()">
+  <form class="modal-editar-card" onsubmit="event.preventDefault(); salvarEdicaoMembro()">
+    <h3>Editar horário da equipe</h3>
+    <label for="editarMembroNome">Nome</label>
+    <input id="editarMembroNome" autocomplete="off" required />
+    <label for="editarMembroEntrada">Horário de entrada</label>
+    <select id="editarMembroEntrada">
+      <option value="7">7:00 – 16:00</option>
+      <option value="8">8:00 – 17:00</option>
+      <option value="9">9:00 – 18:00</option>
+      <option value="10">10:00 – 19:00</option>
+    </select>
+    <label for="editarMembroAlmoco">Início do horário de almoço</label>
+    <input id="editarMembroAlmoco" type="time" />
+    <div class="modal-editar-actions">
+      <button type="button" onclick="fecharEditarMembro()">Cancelar</button>
+      <button type="submit" class="principal">Salvar</button>
+    </div>
+  </form>
+</div>
+
+<div class="scroll-area">  <div class="card">
     <div class="cal-header">
       <h2 style="margin:0;">Calendário de plantão</h2>
       <div class="cal-nav">
@@ -493,6 +523,7 @@
       const presente = !fds && horaAtual >= m.entrada && horaAtual < m.entrada + 9;
       const row = document.createElement('div');
       row.className = 'membro-row';
+      const almoco = m.almoco_inicio ? String(m.almoco_inicio).slice(0, 5) : '—';
       row.innerHTML = `
         <div class="membro-info">
           <span class="status-dot ${presente ? 'ativo' : ''}"></span>
@@ -500,6 +531,7 @@
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
           <span class="membro-horario">${m.entrada}:00 – ${m.entrada + 9}:00</span>
+          <span class="membro-almoco" title="Início do almoço">Almoço: ${almoco}</span>
           <div class="membro-actions">
             <button onclick="editarMembro('${m.id}')">Editar</button>
             <button class="remover" onclick="removerMembro('${m.id}')">Remover</button>
@@ -576,22 +608,47 @@
     renderEquipe();
   }
 
-  async function editarMembro(id) {
+  let membroEditandoId = null;
+
+  function editarMembro(id) {
     const m = equipe.find(x => x.id === id);
     if (!m) return;
-    const novoNome = prompt('Nome:', m.nome);
-    if (novoNome === null) return;
-    const novaEntrada = prompt('Entrada (7, 8, 9 ou 10):', m.entrada);
-    if (novaEntrada === null) return;
 
-    const nome = novoNome.trim() || m.nome;
-    const entrada = [7, 8, 9, 10].includes(Number(novaEntrada)) ? Number(novaEntrada) : m.entrada;
+    membroEditandoId = id;
+    document.getElementById('editarMembroNome').value = m.nome || '';
+    document.getElementById('editarMembroEntrada').value = String(m.entrada);
+    document.getElementById('editarMembroAlmoco').value = m.almoco_inicio ? String(m.almoco_inicio).slice(0, 5) : '';
+    document.getElementById('modalEditarMembro').classList.add('aberto');
+    document.getElementById('editarMembroNome').focus();
+  }
 
-    const { error } = await supabaseClient.from('escala_equipe').update({ nome, entrada }).eq('id', id);
+  function fecharEditarMembro() {
+    document.getElementById('modalEditarMembro').classList.remove('aberto');
+    membroEditandoId = null;
+  }
+
+  async function salvarEdicaoMembro() {
+    const m = equipe.find(x => x.id === membroEditandoId);
+    if (!m) return;
+
+    const nome = document.getElementById('editarMembroNome').value.trim() || m.nome;
+    const entradaEscolhida = Number(document.getElementById('editarMembroEntrada').value);
+    const entrada = [7, 8, 9, 10].includes(entradaEscolhida) ? entradaEscolhida : m.entrada;
+    const almocoValor = document.getElementById('editarMembroAlmoco').value;
+    const almoco_inicio = almocoValor || null;
+
+    const { error } = await supabaseClient
+      .from('escala_equipe')
+      .update({ nome, entrada, almoco_inicio })
+      .eq('id', membroEditandoId);
+
     if (error) { alert('Erro ao salvar: ' + error.message); return; }
 
     m.nome = nome;
     m.entrada = entrada;
+    m.almoco_inicio = almoco_inicio;
+    equipe.sort((a, b) => a.entrada - b.entrada);
+    fecharEditarMembro();
     renderEquipe();
   }
 
