@@ -171,9 +171,13 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let maquinas = [];
 let unidadeSelecionada = 'Todas';
+let tvRealtimeChannel = null;
+let tvRealtimeConnected = false;
+let tvRealtimeRetry = null;
 
 const UNIDADES = [
   'Nova Campinas',
@@ -385,7 +389,7 @@ async function carregar() {
         } catch {}
       }));
 
-    status.textContent = 'API: online';
+    status.textContent = 'API: online' + (tvRealtimeConnected ? ' · Realtime: conectado' : ' · Realtime: conectando...');
     render();
   } catch (e) {
     status.textContent = 'API: erro';
@@ -617,6 +621,58 @@ tick();
 setInterval(tick,1000);
 carregar();
 setInterval(carregar,30000);
+
+// Realtime usa uma tabela espelho sem token_hash, para não expor credenciais das TVs.
+const TV_SUPABASE_URL = 'https://koiiqafjmlnsdkijnwmi.supabase.co';
+const TV_SUPABASE_ANON_KEY = 'sb_publishable_Uv8bl8Ont7pAQju9WrBJww_aoR2KTSp';
+const tvSupabase = window.supabase.createClient(TV_SUPABASE_URL, TV_SUPABASE_ANON_KEY);
+
+function configurarRealtimeTvs() {
+  if (tvRealtimeChannel) {
+    tvSupabase.removeChannel(tvRealtimeChannel);
+    tvRealtimeChannel = null;
+  }
+
+  tvRealtimeChannel = tvSupabase
+    .channel('infrahub-tvs-status')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'maquinas_tv_status'
+    }, (payload) => {
+      console.info('[InfraHub TVs] alteração recebida:', payload.eventType, payload.new?.id || payload.old?.id || '');
+      carregar();
+    })
+    .subscribe((status, err) => {
+      console.info('[InfraHub TVs] status Realtime:', status, err || '');
+      const apiStatus = document.getElementById('apiStatus');
+      if (status === 'SUBSCRIBED') {
+        tvRealtimeConnected = true;
+        apiStatus.textContent = 'API: online · Realtime: conectado';
+        if (tvRealtimeRetry) { clearTimeout(tvRealtimeRetry); tvRealtimeRetry = null; }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        tvRealtimeConnected = false;
+        apiStatus.textContent = 'API: online · Realtime: reconectando...';
+        if (tvRealtimeRetry) clearTimeout(tvRealtimeRetry);
+        tvRealtimeRetry = setTimeout(configurarRealtimeTvs, 3000);
+      }
+    });
+}
+
+configurarRealtimeTvs();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    carregar();
+    if (!tvRealtimeConnected) configurarRealtimeTvs();
+  }
+});
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    console.info('[InfraHub TVs] página restaurada do BFCache; reconectando Realtime...');
+    configurarRealtimeTvs();
+    carregar();
+  }
+});
 </script>
 </body>
 </html>
