@@ -926,17 +926,31 @@
     }, 250);
   }
 
+  let realtimeChannel = null;
+
   function configurarRealtime() {
-    supabaseClient
+    if (realtimeChannel) {
+      supabaseClient.removeChannel(realtimeChannel);
+    }
+
+    realtimeChannel = supabaseClient
       .channel('infrahub-plantao-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plantoes' }, solicitarSincronizacao)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'escala_equipe' }, solicitarSincronizacao)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ronda_cmd' }, solicitarSincronizacao)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.info('[InfraHub] sincronização em tempo real conectada.');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn('[InfraHub] Realtime indisponível; a sincronização periódica continua ativa.', status);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plantoes' }, (payload) => {
+        console.info('[InfraHub] alteração recebida: plantoes', payload.eventType);
+        solicitarSincronizacao();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escala_equipe' }, (payload) => {
+        console.info('[InfraHub] alteração recebida: escala_equipe', payload.eventType);
+        solicitarSincronizacao();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ronda_cmd' }, (payload) => {
+        console.info('[InfraHub] alteração recebida: ronda_cmd', payload.eventType);
+        solicitarSincronizacao();
+      })
+      .subscribe((status, err) => {
+        console.info('[InfraHub] status Realtime:', status, err || '');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[InfraHub] Realtime indisponível; sincronização periódica continua ativa.');
         }
       });
   }
