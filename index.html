@@ -858,6 +858,32 @@
     renderCalendario();
   }
 
+  // ---------- Sincronização em tempo real ----------
+  let sincronizacaoPendente = null;
+
+  function solicitarSincronizacao() {
+    if (sincronizacaoPendente) clearTimeout(sincronizacaoPendente);
+    sincronizacaoPendente = setTimeout(() => {
+      sincronizacaoPendente = null;
+      carregarTudo();
+    }, 250);
+  }
+
+  function configurarRealtime() {
+    supabaseClient
+      .channel('infrahub-plantao-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plantoes' }, solicitarSincronizacao)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escala_equipe' }, solicitarSincronizacao)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ronda_cmd' }, solicitarSincronizacao)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.info('[InfraHub] sincronização em tempo real conectada.');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[InfraHub] Realtime indisponível; a sincronização periódica continua ativa.', status);
+        }
+      });
+  }
+
   // ---------- Boot ----------
   async function carregarTudo() {
     [equipe, plantoes, ronda] = await Promise.all([
@@ -873,10 +899,17 @@
 
   atualizarRelogio();
   carregarTudo();
+  configurarRealtime();
 
   setInterval(atualizarRelogio, 1000);
-  // Re-sincroniza com o banco a cada 30s, pra pegar edições feitas em outro aparelho
-  setInterval(carregarTudo, 30000);
+  // Fallback: consulta o banco a cada 60s caso algum evento em tempo real se perca.
+  setInterval(carregarTudo, 60000);
+
+  // Ao voltar para uma aba aberta em segundo plano, sincroniza novamente.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') solicitarSincronizacao();
+  });
+  
 </script>
 
 </body>
