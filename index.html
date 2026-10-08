@@ -391,7 +391,17 @@
         <span class="cal-mes" id="calMesLabel"></span>
         <button onclick="mudarMes(1)">Próximo →</button>
         <button onclick="document.getElementById('inputImportarPlantao').click()">📥 Importar Excel/CSV</button>
+        <button onclick="abrirAleatorizadorPlantao()">🎲 Aleatorizar</button>
         <input type="file" id="inputImportarPlantao" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarPlantaoArquivo(event)" />
+      </div>
+      <div id="aleatorizadorPlantao" style="display:none; margin: 8px 0 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);">
+        <label for="nomesAleatorizador" style="display:block; color:var(--text-dim); font-size:0.78rem; margin-bottom:6px;">Insira os nomes dos plantonistas, um por linha:</label>
+        <textarea id="nomesAleatorizador" rows="4" placeholder="Guilherme&#10;Pedro&#10;João" style="width:100%; resize:vertical; font-family:Inter,sans-serif; font-size:0.85rem; background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px;"></textarea>
+        <div style="display:flex; gap:6px; margin-top:7px; justify-content:flex-end; flex-wrap:wrap;">
+          <button onclick="fecharAleatorizadorPlantao()">Cancelar</button>
+          <button class="principal" onclick="aleatorizarPlantaoMes()">Gerar escala</button>
+        </div>
+      </div>
       </div>
     </div>
     <div class="cal-grid" id="calGrid"></div>
@@ -721,6 +731,56 @@
   function mudarMes(delta) {
     mesAtual.setMonth(mesAtual.getMonth() + delta);
     renderCalendario();
+  }
+
+  function abrirAleatorizadorPlantao() {
+    const painel = document.getElementById('aleatorizadorPlantao');
+    painel.style.display = 'block';
+    document.getElementById('nomesAleatorizador').focus();
+  }
+
+  function fecharAleatorizadorPlantao() {
+    document.getElementById('aleatorizadorPlantao').style.display = 'none';
+  }
+
+  async function aleatorizarPlantaoMes() {
+    const entrada = document.getElementById('nomesAleatorizador').value;
+    const nomes = [...new Set(entrada.split(/\r?\n|,/).map(nome => nome.trim()).filter(Boolean))];
+
+    if (nomes.length === 0) {
+      alert('Insira pelo menos um nome.');
+      return;
+    }
+
+    const ano = mesAtual.getFullYear();
+    const mes = mesAtual.getMonth();
+    const totalDias = new Date(ano, mes + 1, 0).getDate();
+    const datas = Array.from({ length: totalDias }, (_, i) => isoDia(new Date(ano, mes, i + 1)));
+
+    const escala = Array.from({ length: totalDias }, (_, i) => nomes[i % nomes.length]);
+
+    for (let i = escala.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [escala[i], escala[j]] = [escala[j], escala[i]];
+    }
+
+    const linhas = datas.map((data, i) => ({ data, nome: escala[i] }));
+    const { error } = await supabaseClient.from('plantoes').upsert(linhas, { onConflict: 'data' });
+
+    if (error) {
+      alert('Erro ao gerar a escala: ' + error.message);
+      return;
+    }
+
+    linhas.forEach(linha => { plantoes[linha.data] = linha.nome; });
+    renderPlantaoHoje();
+    renderCalendario();
+    fecharAleatorizadorPlantao();
+    document.getElementById('nomesAleatorizador').value = '';
+
+    const base = Math.floor(totalDias / nomes.length);
+    const extras = totalDias % nomes.length;
+    alert(`Escala gerada para ${totalDias} dias. Cada plantonista ficou com ${base}${extras ? ` ou ${base + 1}` : ''} plantão(ões).`);
   }
 
     function horasDoDia(d) { return ehFimDeSemana(d) ? 24 : 12; }
