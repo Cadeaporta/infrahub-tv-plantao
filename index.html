@@ -983,6 +983,16 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') solicitarSincronizacao();
   });
+
+  // O navegador pode congelar/encerrar o WebSocket ao colocar a página no BFCache.
+  // Ao restaurar a página pelo voltar/avançar, cria um canal novo.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      console.info('[InfraHub] página restaurada do BFCache; reconectando Realtime...');
+      configurarRealtime();
+      solicitarSincronizacao();
+    }
+  });
   
 </script>
 
