@@ -303,9 +303,6 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
   }
 });
 
-tvSupabase.auth.onAuthStateChange((_event, session) => {
-  setTimeout(() => aplicarSessao(session), 0);
-});
 let tvRealtimeChannel = null;
 let tvRealtimeConnected = false;
 let tvRealtimeRetry = null;
@@ -450,7 +447,7 @@ function render() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div class="badge"><i></i>${isOn ? 'ONLINE':'OFFLINE'}</div>
-          <div class="tv-menu"><button class="tv-menu-btn" title="Opções" >⋮</button><div class="tv-menu-content"><button data-id="${esc(id)}" onclick="editarUrl(this.dataset.id)">✎ URL esperada</button><button data-id="${esc(id)}" onclick="abrirUrls(this.dataset.id)">🌐 Abrir URLs</button><button class="danger" data-id="${esc(id)}" onclick="excluirTv(this.dataset.id)">🗑 Excluir painel</button></div></div>
+          <div class="tv-menu"><button class="tv-menu-btn" title="Opções" >⋮</button><div class="tv-menu-content">${currentRole === 'admin' ? `<button data-id="${esc(id)}" onclick="editarUrl(this.dataset.id)">✎ URL esperada</button>` : ''}<button data-id="${esc(id)}" onclick="abrirUrls(this.dataset.id)">🌐 Abrir URLs</button>${currentRole === 'admin' ? `<button class="danger" data-id="${esc(id)}" onclick="excluirTv(this.dataset.id)">🗑 Excluir painel</button>` : ''}</div></div>
         </div>
       </div>
       <div class="info">
@@ -726,6 +723,10 @@ setInterval(() => {
 const TV_SUPABASE_URL = 'https://koiiqafjmlnsdkijnwmi.supabase.co';
 const TV_SUPABASE_ANON_KEY = 'sb_publishable_Uv8bl8Ont7pAQju9WrBJww_aoR2KTSp';
 const tvSupabase = window.supabase.createClient(TV_SUPABASE_URL, TV_SUPABASE_ANON_KEY);
+
+tvSupabase.auth.onAuthStateChange((_event, session) => {
+  setTimeout(() => aplicarSessao(session), 0);
+});
 
 function configurarRealtimeTvs() {
   if (!currentSession) return;
