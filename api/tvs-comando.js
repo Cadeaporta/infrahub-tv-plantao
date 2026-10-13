@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   const body = req.body || {};
   const maquina_id = String(body.maquina_id || '').trim();
   const tipo = String(body.tipo || '').trim().toLowerCase();
-  const permitidos = new Set(['reload', 'navigate', 'navegar', 'abrir_urls', 'abrir_url']);
+  const permitidos = new Set(['reload', 'navigate', 'navegar', 'abrir_urls', 'abrir_url', 'tab_turner_start', 'tab_turner_stop', 'config_sync']);
   if (!maquina_id || !tipo) {
     return res.status(400).json({ erro: 'maquina_id e tipo são obrigatórios' });
   }
