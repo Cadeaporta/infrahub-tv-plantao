@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
         'Content-Type': 'application/json',
         'x-admin-secret': process.env.ADMIN_SECRET
       },
-      body: JSON.stringify({ id, action })
+      body: JSON.stringify({ id, action, aprovada_por: auth.user.id })
     });
     const text = await response.text();
     res.status(response.status);
