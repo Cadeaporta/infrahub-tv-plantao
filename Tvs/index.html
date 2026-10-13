@@ -526,7 +526,7 @@ function render() {
 }
 
 async function carregarPerfis() {
-  if (currentRole !== 'admin') { perfis = []; return; }
+  if (!currentRole) { perfis = []; return; }
   try {
     const r = await apiFetch('/api/tvs-perfis', { cache: 'no-store' });
     const data = await r.json().catch(() => ({}));
