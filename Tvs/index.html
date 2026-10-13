@@ -347,6 +347,20 @@ function heartbeat(m) {
   return new Date(hb).toLocaleString('pt-BR');
 }
 
+function resumoComando(m) {
+  const c = m.ultimo_comando;
+  if (!c) return 'Nenhum';
+  const status = {
+    enviado: 'Enviado',
+    recebido: 'Recebido',
+    executando: 'Executando',
+    concluido: 'Concluído',
+    falhou: 'Falhou'
+  }[c.status] || c.status || 'Desconhecido';
+  const data = c.created_at ? new Date(c.created_at).toLocaleTimeString('pt-BR') : '';
+  return [c.tipo, status, data].filter(Boolean).join(' · ');
+}
+
 function lerExcluidas() {
   try {
     const valor = JSON.parse(localStorage.getItem('infrahub_tv_excluidas') || '[]');
@@ -465,7 +479,8 @@ function render() {
         <div class="row"><span>Atividade</span><strong>${esc(m.ultima_atividade ? new Date(m.ultima_atividade).toLocaleString('pt-BR') : heartbeat(m))}</strong></div>
         <div class="row"><span>URL atual</span><strong title="${esc(atual)}">${esc(atual.length > 35 ? atual.slice(0,35)+'…' : atual)}</strong></div>
         <div class="row"><span>URL esperada</span><strong class="${urlOk === false ? 'bad' : urlOk === true ? 'good':''}">${urlOk === true ? '✓ Correta' : urlOk === false ? '✕ Diferente' : esc(esperada)}</strong></div>
-        <div class="row"><span>Último erro</span><strong class="${m.ultimo_erro ? 'bad' : ''}" title="${esc(m.ultimo_erro || '')}">${esc(m.ultimo_erro || 'Nenhum')}</strong></div>
+        <div class="row"><span>Último comando</span><strong class="${m.ultimo_comando?.status === 'falhou' ? 'bad' : ''}" title="${esc(m.ultimo_comando?.erro || '')}">${esc(resumoComando(m))}</strong></div>
+        <div class="row"><span>Último erro</span><strong class="${m.ultimo_erro || m.ultimo_comando?.erro ? 'bad' : ''}" title="${esc(m.ultimo_erro || m.ultimo_comando?.erro || '')}">${esc(m.ultimo_erro || m.ultimo_comando?.erro || 'Nenhum')}</strong></div>
         <div class="row">
           <span>Unidade</span>
           <select onchange="salvarUnidadeLocal('${esc(id)}', this.value)" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:5px 7px;font:.72rem monospace">
