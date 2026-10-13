@@ -495,6 +495,7 @@ function render() {
       </div>
       <div class="info">
         <div class="row"><span>Aprovação</span><strong>${esc(approval)}</strong></div>
+        <div class="row"><span>ID único</span><strong title="${esc(m.machine_uuid || '')}">${esc(m.machine_uuid ? m.machine_uuid.slice(0, 8) + '…' : 'Não registrado')}</strong></div>
         <div class="row"><span>Heartbeat</span><strong>${esc(heartbeat(m))}</strong></div>
         <div class="row"><span>Atividade</span><strong>${esc(m.ultima_atividade ? new Date(m.ultima_atividade).toLocaleString('pt-BR') : heartbeat(m))}</strong></div>
         <div class="row"><span>URL atual</span><strong title="${esc(atual)}">${esc(atual.length > 35 ? atual.slice(0,35)+'…' : atual)}</strong></div>
