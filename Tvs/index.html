@@ -133,6 +133,23 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   <p>O cadastro seguro será realizado pelo helper instalado via Atera. Novos dispositivos aparecem como <strong>PENDENTE</strong> e só começam a comunicar depois da aprovação de um administrador. Não cole segredos administrativos no navegador.</p>
 </section>
 
+<section class="command-panel profile-panel" hidden>
+  <h2>🗂 Perfis de navegação</h2>
+  <p>Crie perfis reutilizáveis e atribua um a cada TV. Use uma URL HTTP/HTTPS por linha. A rotação respeita intervalo mínimo de 30 segundos.</p>
+  <form id="profileForm">
+    <div class="command-fields">
+      <label>Nome do perfil<input id="profileName" maxlength="100" required placeholder="Ex.: Painéis recepção"></label>
+      <label>Intervalo (segundos)<input id="profileInterval" type="number" min="30" max="3600" step="30" value="60" required></label>
+      <label>Descrição<input id="profileDescription" maxlength="500" placeholder="Uso do perfil (opcional)"></label>
+    </div>
+    <label style="display:block;font-size:.72rem;color:var(--dim);margin-top:10px">URLs (uma por linha)
+      <textarea id="profileUrls" rows="4" required placeholder="http://servidor/painel1&#10;https://exemplo/painel2" style="width:100%;margin-top:6px;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:9px;font:.75rem monospace"></textarea>
+    </label>
+    <div class="command-actions"><button class="primary" type="submit">Salvar perfil</button><span class="copy-ok" id="profileStatus"></span></div>
+  </form>
+  <div id="profileList" style="font-size:.78rem;color:var(--dim);margin-top:10px"></div>
+</section>
+
 <nav class="unit-tabs" aria-label="Unidades">
   <button class="unit-tab active" data-unit="Todas" onclick="selecionarUnidade('Todas')">Todas</button>
   <button class="unit-tab" data-unit="Nova Campinas" onclick="selecionarUnidade('Nova Campinas')">Nova Campinas</button>
@@ -182,6 +199,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let maquinas = [];
+let perfis = [];
 let unidadeSelecionada = 'Todas';
 let currentSession = null;
 let currentRole = null;
@@ -204,6 +222,7 @@ function mostrarDashboard() {
   document.getElementById('loginScreen').hidden = true;
   document.getElementById('appShell').hidden = false;
   document.querySelector('.command-panel').hidden = currentRole !== 'admin';
+  document.querySelector('.profile-panel').hidden = currentRole !== 'admin';
 }
 
 async function aplicarSessao(session) {
@@ -244,6 +263,7 @@ async function aplicarSessao(session) {
 
     mostrarDashboard();
     document.getElementById('apiStatus').textContent = 'Sessão ativa · ' + (currentRole === 'admin' ? 'Administrador' : 'Operador');
+    await carregarPerfis();
     await carregar();
     configurarRealtimeTvs();
   } catch (error) {
@@ -488,6 +508,12 @@ function render() {
             ${UNIDADES.map(u => `<option value="${esc(u)}" ${detectarUnidade(m) === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}
           </select>
         </div>
+        <div class="row">
+          <span>Perfil</span>
+          ${currentRole === 'admin'
+            ? `<select data-id="${esc(id)}" onchange="atribuirPerfil(this.dataset.id,this.value)" style="max-width:65%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:5px 7px;font:.72rem monospace"><option value="">Sem perfil</option>${perfis.filter(p => p.ativo !== false).map(p => `<option value="${esc(p.id)}" ${m.perfil_id === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>`
+            : esc(perfis.find(p => p.id === m.perfil_id)?.nome || 'Sem perfil')}
+        </div>
         <div class="url-edit" id="edit-${esc(id)}" hidden>
           <input id="url-${esc(id)}" type="url" value="${esc(esperada === '—' ? '' : esperada)}" placeholder="https://exemplo.vercel.app">
           <button onclick="salvarUrl('${esc(id)}')">Salvar</button>
@@ -497,6 +523,69 @@ function render() {
       <div class="actions">${isApproved ? `<button onclick="comando('${esc(id)}','reload')">↻ Recarregar</button>` : '<span style="color:var(--dim);font-size:.78rem">Aguardando aprovação para comunicar.</span>'}</div>
     </article>`;
   }).join('');
+}
+
+async function carregarPerfis() {
+  if (currentRole !== 'admin') { perfis = []; return; }
+  try {
+    const r = await apiFetch('/api/tvs-perfis', { cache: 'no-store' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+    perfis = Array.isArray(data.perfis) ? data.perfis : [];
+    document.getElementById('profileList').textContent = perfis.length
+      ? 'Perfis disponíveis: ' + perfis.map(p => `${p.nome} (${p.sites?.length || 0} URLs, ${p.intervalo_segundos}s)`).join(' · ')
+      : 'Nenhum perfil criado ainda.';
+  } catch (error) {
+    document.getElementById('profileStatus').textContent = 'Falha ao carregar perfis: ' + error.message;
+  }
+}
+
+document.getElementById('profileForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const status = document.getElementById('profileStatus');
+  status.textContent = 'Salvando...';
+  const urls = document.getElementById('profileUrls').value.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
+  const payload = {
+    nome: document.getElementById('profileName').value.trim(),
+    descricao: document.getElementById('profileDescription').value.trim(),
+    intervalo_segundos: Number(document.getElementById('profileInterval').value),
+    sites: urls.map(url => ({ url }))
+  };
+  try {
+    const r = await apiFetch('/api/tvs-perfis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+    status.textContent = '✓ Perfil salvo';
+    document.getElementById('profileForm').reset();
+    document.getElementById('profileInterval').value = '60';
+    await carregarPerfis();
+    render();
+  } catch (error) {
+    status.textContent = 'Erro: ' + error.message;
+  }
+});
+
+async function atribuirPerfil(id, perfil_id) {
+  try {
+    const r = await apiFetch('/api/tvs-maquinas', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, perfil_id: perfil_id || null })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+    const maquina = maquinas.find(m => (m.id || m.maquina_id) === id);
+    if (maquina) maquina.perfil_id = perfil_id || null;
+    await comando(id, 'config_sync');
+    render();
+  } catch (error) {
+    alert('Erro ao atribuir perfil: ' + error.message);
+    await carregar();
+  }
 }
 
 async function carregar() {
