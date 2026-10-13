@@ -581,7 +581,9 @@ async function atribuirPerfil(id, perfil_id) {
     if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
     const maquina = maquinas.find(m => (m.id || m.maquina_id) === id);
     if (maquina) maquina.perfil_id = perfil_id || null;
-    await comando(id, 'config_sync');
+    if (maquina?.status_aprovacao === 'aprovada' || !maquina?.status_aprovacao) {
+      await comando(id, 'config_sync');
+    }
     render();
   } catch (error) {
     alert('Erro ao atribuir perfil: ' + error.message);
