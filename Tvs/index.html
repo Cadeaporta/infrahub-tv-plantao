@@ -78,9 +78,34 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   .command-fields{grid-template-columns:1fr}
   .unit-tabs{margin-right:-18px}
 }
+  .login-screen{position:fixed;inset:0;z-index:5000;display:grid;place-items:center;padding:20px;background:var(--bg)}
+  .login-card{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+  .login-card h2{margin:0 0 6px;font:700 1.25rem monospace}
+  .login-card p{color:var(--dim);font-size:.85rem;line-height:1.5}
+  .login-card label{display:block;margin-top:14px;color:var(--dim);font-size:.75rem}
+  .login-card input{display:block;width:100%;margin-top:6px;padding:11px}
+  .login-card button{width:100%;margin-top:18px;padding:11px}
+  #loginError{color:var(--red);font-size:.8rem;min-height:1.2em;margin-top:12px}
+  #logoutButton{margin-top:7px}
+  #appShell[hidden],#loginScreen[hidden]{display:none!important}
 </style>
 </head>
 <body>
+<section class="login-screen" id="loginScreen">
+  <form class="login-card" id="loginForm">
+    <h2>InfraHub · TVs</h2>
+    <p>Acesso restrito. Entre com sua conta autorizada do InfraHub.</p>
+    <label for="loginEmail">E-mail
+      <input id="loginEmail" type="email" autocomplete="username" required>
+    </label>
+    <label for="loginPassword">Senha
+      <input id="loginPassword" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="primary" id="loginSubmit" type="submit">Entrar</button>
+    <div id="loginError" role="status" aria-live="polite"></div>
+  </form>
+</section>
+<div id="appShell" hidden>
 <header>
   <div class="logo">
     <span class="dot"></span>
@@ -92,6 +117,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   <div>
     <div class="clock" id="clock">--:--:--</div>
     <div class="api-status" id="apiStatus">API: verificando...</div>
+    <button id="logoutButton" type="button" onclick="sairDashboard()">Sair</button>
   </div>
 </header>
 
@@ -170,11 +196,116 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
     </div>
   </div>
 </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let maquinas = [];
 let unidadeSelecionada = 'Todas';
+let currentSession = null;
+let currentRole = null;
+let authBusy = false;
+
+async function apiFetch(url, options = {}) {
+  if (!currentSession?.access_token) throw new Error('Sessão não autenticada.');
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', `Bearer ${currentSession.access_token}`);
+  return fetch(url, { ...options, headers, cache: options.cache || 'no-store' });
+}
+
+function mostrarLogin(mensagem = '') {
+  document.getElementById('appShell').hidden = true;
+  document.getElementById('loginScreen').hidden = false;
+  document.getElementById('loginError').textContent = mensagem;
+}
+
+function mostrarDashboard() {
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('appShell').hidden = false;
+  document.querySelector('.command-panel').hidden = currentRole !== 'admin';
+}
+
+async function aplicarSessao(session) {
+  currentSession = session || null;
+  currentRole = null;
+  if (!session?.user?.id) {
+    mostrarLogin();
+    if (tvRealtimeChannel) {
+      await tvSupabase.removeChannel(tvRealtimeChannel);
+      tvRealtimeChannel = null;
+    }
+    tvRealtimeConnected = false;
+    return;
+  }
+
+  try {
+    const { data: profile, error } = await tvSupabase
+      .from('profiles')
+      .select('role,ativo')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (error || !profile || profile.ativo === false) {
+      currentSession = null;
+      await tvSupabase.auth.signOut();
+      mostrarLogin('Conta sem perfil ativo. Solicite liberação a um administrador.');
+      return;
+    }
+
+    if (profile.role === 'admin') currentRole = 'admin';
+    else if (['tecnico', 'operador', 'operator'].includes(profile.role)) currentRole = 'operator';
+    else {
+      currentSession = null;
+      await tvSupabase.auth.signOut();
+      mostrarLogin('Seu perfil não possui acesso ao painel de TVs.');
+      return;
+    }
+
+    mostrarDashboard();
+    document.getElementById('apiStatus').textContent = 'Sessão ativa · ' + (currentRole === 'admin' ? 'Administrador' : 'Operador');
+    await carregar();
+    configurarRealtimeTvs();
+  } catch (error) {
+    console.error('[InfraHub] falha ao validar perfil:', error);
+    currentSession = null;
+    mostrarLogin('Não foi possível validar seu acesso. Tente novamente.');
+  }
+}
+
+async function sairDashboard() {
+  await tvSupabase.auth.signOut();
+  currentSession = null;
+  currentRole = null;
+  mostrarLogin('Sessão encerrada.');
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (authBusy) return;
+  authBusy = true;
+  const button = document.getElementById('loginSubmit');
+  const message = document.getElementById('loginError');
+  button.disabled = true;
+  button.textContent = 'Validando...';
+  message.textContent = '';
+  try {
+    const { error } = await tvSupabase.auth.signInWithPassword({
+      email: document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value
+    });
+    if (error) message.textContent = 'Login não realizado. Confira as credenciais ou a autorização da conta.';
+  } catch (error) {
+    message.textContent = 'Falha de conexão ao autenticar.';
+  } finally {
+    authBusy = false;
+    button.disabled = false;
+    button.textContent = 'Entrar';
+  }
+});
+
+tvSupabase.auth.onAuthStateChange((_event, session) => {
+  setTimeout(() => aplicarSessao(session), 0);
+});
 let tvRealtimeChannel = null;
 let tvRealtimeConnected = false;
 let tvRealtimeRetry = null;
@@ -189,7 +320,6 @@ const UNIDADES = [
 ];
 
 function detectarUnidade(m) {
-  if (m.unidade) return m.unidade;
   try {
     const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
     return salvas[m.id || m.maquina_id] || '';
@@ -198,26 +328,16 @@ function detectarUnidade(m) {
   }
 }
 
-async function salvarUnidade(id, unidade) {
+function salvarUnidadeLocal(id, unidade) {
   try {
-    const r = await fetch('/api/tvs-maquinas', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, unidade })
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
-
-    const m = maquinas.find(item => (item.id || item.maquina_id) === id);
-    if (m) m.unidade = unidade || '';
+    const salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
+    if (unidade) salvas[id] = unidade;
+    else delete salvas[id];
+    localStorage.setItem('infrahub_tv_unidades', JSON.stringify(salvas));
     render();
   } catch (e) {
-    alert('Erro ao salvar unidade: ' + e.message);
+    alert('Erro ao salvar a unidade neste navegador: ' + e.message);
   }
-}
-
-function salvarUnidadeLocal(id, unidade) {
-  salvarUnidade(id, unidade);
 }
 
 function selecionarUnidade(unidade) {
@@ -275,7 +395,7 @@ function excluirTv(id) {
 
 async function excluirTvBanco(id) {
   try {
-    const r = await fetch('/api/tvs-maquinas', {
+    const r = await apiFetch('/api/tvs-maquinas', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
@@ -363,31 +483,10 @@ async function carregar() {
   err.textContent = '';
   status.textContent = 'API: consultando...';
   try {
-    const r = await fetch('/api/tvs-maquinas', { cache:'no-store' });
+    const r = await apiFetch('/api/tvs-maquinas', { cache:'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     maquinas = Array.isArray(data) ? data : (data.maquinas || data.data || []);
-
-    // Migra a unidade antiga do localStorage para o banco automaticamente.
-    let salvas = {};
-    try {
-      salvas = JSON.parse(localStorage.getItem('infrahub_tv_unidades') || '{}');
-    } catch {}
-
-    await Promise.all(maquinas
-      .filter(m => !m.unidade && salvas[m.id || m.maquina_id])
-      .map(async m => {
-        const id = m.id || m.maquina_id;
-        const unidade = salvas[id];
-        try {
-          const r = await fetch('/api/tvs-maquinas', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, unidade })
-          });
-          if (r.ok) m.unidade = unidade;
-        } catch {}
-      }));
 
     status.textContent = 'API: online' + (tvRealtimeConnected ? ' · Realtime: conectado' : ' · Realtime: conectando...');
     render();
@@ -431,7 +530,7 @@ async function salvarUrl(id) {
   }
 
   try {
-    const r = await fetch('/api/tvs-maquinas', {
+    const r = await apiFetch('/api/tvs-maquinas', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, url_esperada: url })
@@ -452,7 +551,7 @@ async function salvarUrl(id) {
 
 async function comando(maquinaId, tipo) {
   try {
-    const r = await fetch('/api/tvs-comando', {
+    const r = await apiFetch('/api/tvs-comando', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ maquina_id:maquinaId, tipo, payload:{} })
@@ -542,7 +641,7 @@ function enviarAbrirUrls() {
 
 async function enviarComandoAbrirUrls(maquinaId, urls) {
   try {
-    const r = await fetch('/api/tvs-comando', {
+    const r = await apiFetch('/api/tvs-comando', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -619,8 +718,9 @@ function tick() {
 }
 tick();
 setInterval(tick,1000);
-carregar();
-setInterval(carregar,30000);
+setInterval(() => {
+  if (currentSession) carregar();
+}, 30000);
 
 // Realtime usa uma tabela espelho sem token_hash, para não expor credenciais das TVs.
 const TV_SUPABASE_URL = 'https://koiiqafjmlnsdkijnwmi.supabase.co';
@@ -628,6 +728,7 @@ const TV_SUPABASE_ANON_KEY = 'sb_publishable_Uv8bl8Ont7pAQju9WrBJww_aoR2KTSp';
 const tvSupabase = window.supabase.createClient(TV_SUPABASE_URL, TV_SUPABASE_ANON_KEY);
 
 function configurarRealtimeTvs() {
+  if (!currentSession) return;
   if (tvRealtimeChannel) {
     tvSupabase.removeChannel(tvRealtimeChannel);
     tvRealtimeChannel = null;
@@ -659,20 +760,24 @@ function configurarRealtimeTvs() {
     });
 }
 
-configurarRealtimeTvs();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
+  if (document.visibilityState === 'visible' && currentSession) {
     carregar();
     if (!tvRealtimeConnected) configurarRealtimeTvs();
   }
 });
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
+  if (event.persisted && currentSession) {
     console.info('[InfraHub TVs] página restaurada do BFCache; reconectando Realtime...');
     configurarRealtimeTvs();
     carregar();
   }
 });
+(async () => {
+  const { data, error } = await tvSupabase.auth.getSession();
+  if (error) mostrarLogin('Não foi possível recuperar a sessão. Entre novamente.');
+  else await aplicarSessao(data.session);
+})();
 </script>
 </body>
 </html>
