@@ -136,6 +136,22 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
 <section class="command-panel profile-panel" hidden>
   <h2>🗂 Perfis de navegação</h2>
   <p>Crie perfis reutilizáveis e atribua um a cada TV. Use uma URL HTTP/HTTPS por linha. A rotação respeita intervalo mínimo de 30 segundos.</p>
+  <div style="border:1px solid var(--line);border-radius:9px;padding:12px;margin:12px 0">
+    <h3 style="font:700 .85rem monospace;margin:0 0 6px">🔐 Código de cadastro Atera</h3>
+    <p style="margin:0 0 10px">Gere um código de uso único, válido por 60 minutos, para o helper local. Não coloque esse código na extensão nem compartilhe fora do fluxo de instalação.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="enrollmentDescription" placeholder="Descrição (ex.: TV Recepção)" maxlength="255" style="flex:1;min-width:220px">
+      <button class="primary" id="generateEnrollmentCode" type="button">Gerar código</button>
+    </div>
+    <div id="enrollmentCodeOutput" style="display:none;margin-top:10px">
+      <textarea id="enrollmentCodeValue" readonly rows="2" style="width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:9px;font:.75rem monospace"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:7px;flex-wrap:wrap">
+        <button id="copyEnrollmentCode" type="button">Copiar código</button>
+        <span id="enrollmentCodeExpiry" style="color:var(--dim);font-size:.75rem"></span>
+      </div>
+    </div>
+    <div id="enrollmentCodeStatus" style="font-size:.75rem;color:var(--dim);margin-top:8px"></div>
+  </div>
   <form id="profileForm">
     <div class="command-fields">
       <label>Nome do perfil<input id="profileName" maxlength="100" required placeholder="Ex.: Painéis recepção"></label>
@@ -525,6 +541,49 @@ function render() {
     </article>`;
   }).join('');
 }
+
+let enrollmentCodeCurrent = '';
+
+document.getElementById('generateEnrollmentCode').addEventListener('click', async () => {
+  const button = document.getElementById('generateEnrollmentCode');
+  const status = document.getElementById('enrollmentCodeStatus');
+  button.disabled = true;
+  status.textContent = 'Gerando código...';
+  try {
+    const r = await apiFetch('/api/tvs-codigos-cadastro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        descricao: document.getElementById('enrollmentDescription').value.trim(),
+        ttl_minutes: 60
+      })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || `HTTP ${r.status}`);
+    enrollmentCodeCurrent = data.codigo || '';
+    document.getElementById('enrollmentCodeValue').value = enrollmentCodeCurrent;
+    document.getElementById('enrollmentCodeOutput').style.display = 'block';
+    document.getElementById('enrollmentCodeExpiry').textContent = 'Expira em ' + new Date(data.registro.expira_em).toLocaleString('pt-BR');
+    status.textContent = 'Código exibido uma única vez. Copie e entregue ao fluxo do Atera.';
+  } catch (error) {
+    status.textContent = 'Erro ao gerar código: ' + error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById('copyEnrollmentCode').addEventListener('click', async () => {
+  if (!enrollmentCodeCurrent) return;
+  try {
+    await navigator.clipboard.writeText(enrollmentCodeCurrent);
+    document.getElementById('enrollmentCodeStatus').textContent = '✓ Código copiado.';
+  } catch {
+    const input = document.getElementById('enrollmentCodeValue');
+    input.focus();
+    input.select();
+    document.getElementById('enrollmentCodeStatus').textContent = 'Selecione o código e pressione Ctrl+C.';
+  }
+});
 
 async function carregarPerfis() {
   if (!currentRole) { perfis = []; return; }
