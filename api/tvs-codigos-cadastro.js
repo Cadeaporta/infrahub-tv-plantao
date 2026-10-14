@@ -1,11 +1,13 @@
 const { validarUsuarioDashboard } = require('../dashboardAuth');
-const API_URL = 'https://infrahub-monitor-api.vercel.app';
+const API_URL = process.env.INFRAHUB_MONITOR_API_URL;
 
 module.exports = async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ erro: 'method not allowed' });
   const auth = await validarUsuarioDashboard(req);
   if (!auth.ok) return res.status(auth.status).json({ erro: auth.erro });
   if (auth.role !== 'admin') return res.status(403).json({ erro: 'somente administradores podem gerar códigos de cadastro' });
+
+  if (!API_URL) return res.status(503).json({ erro: 'INFRAHUB_MONITOR_API_URL não configurada neste ambiente' });
 
   try {
     const response = await fetch(`${API_URL}/api/admin/codigos-cadastro`, {
