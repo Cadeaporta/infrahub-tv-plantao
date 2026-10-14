@@ -28,7 +28,12 @@ Não habilite cadastro público e não conceda papel de administrador com base e
 
 ## Variáveis de ambiente
 
-No projeto Vercel do dashboard, mantenha `ADMIN_SECRET` apenas no servidor. Configure também `SUPABASE_URL` e, preferencialmente, `SUPABASE_PUBLISHABLE_KEY`. A chave publishable não é um segredo; a chave `service_role` nunca pode ser enviada ao navegador.
+No projeto Vercel do dashboard, configure:
+- `ADMIN_SECRET`: apenas no servidor.
+- `SUPABASE_URL` e, preferencialmente, `SUPABASE_PUBLISHABLE_KEY`.
+- `INFRAHUB_MONITOR_API_URL`: URL explícita do backend InfraHub Monitor para aquele ambiente.
+
+As rotas de proxy devolvem HTTP 503 se `INFRAHUB_MONITOR_API_URL` não estiver configurada. Isso é intencional: um Preview não deve encaminhar aprovações, comandos ou geração de códigos para a API de produção por padrão. Configure a URL de Preview/desenvolvimento no ambiente Preview e a URL de produção somente no ambiente Production, após a validação. A chave publishable não é um segredo; a chave `service_role` nunca pode ser enviada ao navegador.
 
 ## Fechar leitura anônima do status das TVs
 
@@ -47,6 +52,8 @@ create policy "Authenticated users can read TV status"
 
 A aplicação dessa política deve ser coordenada com a liberação do dashboard autenticado. Ela afeta somente leitura direta dessa tabela; não altera a página Plantão nem as rotas autenticadas do servidor.
 
-## Limites desta primeira etapa
+## Estado e liberação
 
-A autenticação do dashboard e o controle de permissões nas rotas intermediárias estão implementados nesta branch. A aprovação de novas TVs, a trilha de auditoria, o histórico de eventos, o ciclo completo de status dos comandos e os perfis de navegação ainda precisam de implementação separada. Não liberar para produção antes de validar Preview e provisionar o primeiro administrador.
+Esta branch inclui autenticação do dashboard, permissões por papel, aprovação/revogação de TVs, geração de códigos de cadastro de uso único e gestão de perfis. O backend e a extensão correspondentes devem estar no mesmo ambiente antes dos testes integrados.
+
+A migração SQL não é aplicada automaticamente. A política anônima de `maquinas_tv_status` continua intacta até confirmar que a página Plantão funciona sem depender de leitura anônima direta dessa tabela. Não liberar para produção antes de validar Preview, provisionar o primeiro administrador e executar os testes integrados.
