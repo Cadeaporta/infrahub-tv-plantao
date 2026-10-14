@@ -26,6 +26,17 @@ set full_name = excluded.full_name,
 
 Não habilite cadastro público e não conceda papel de administrador com base em metadados editáveis pelo próprio usuário.
 
+## Login Microsoft 365 (Microsoft Entra ID)
+
+1. No Microsoft Entra admin center, registre um aplicativo Web para o InfraHub. Configure a URI de redirecionamento da plataforma Web com o callback do Supabase:
+   `https://koiiqafjmlnsdkijnwmi.supabase.co/auth/v1/callback`
+2. No Supabase, abra **Authentication → Sign In / Providers → Azure** e habilite o provedor Azure. Informe o Client ID e Client Secret do aplicativo Entra. Se a organização exigir um tenant específico, configure o Tenant URL/ID do tenant corporativo, não o modo multitenant aberto.
+3. No Azure, configure a permissão OIDC `email`, `openid` e `profile`. O botão da tela usa o provedor Supabase `azure` e retorna para `/Tvs/`.
+4. A aplicação permite apenas os domínios `hospitalcare.com.br` e `hospitalveracruz.com.br`, com validação na tela e no backend. O domínio, sozinho, não concede acesso: o usuário também precisa de uma linha ativa em `public.profiles` e um papel autorizado.
+5. Adicione a URL oficial e a URL de Preview em **Authentication → URL Configuration → Redirect URLs** do Supabase, conforme os ambientes que serão testados. Não promova Preview para produção para testar o SSO.
+
+O registro no Entra e a configuração de Client ID/Secret são necessários para o botão funcionar. Não coloque o Client Secret em variáveis `NEXT_PUBLIC_*`, HTML ou JavaScript.
+
 ## Variáveis de ambiente
 
 No projeto Vercel do dashboard, configure:
