@@ -85,26 +85,52 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   .login-card label{display:block;margin-top:14px;color:var(--dim);font-size:.75rem}
   .login-card input{display:block;width:100%;margin-top:6px;padding:11px}
   .login-card button{width:100%;margin-top:18px;padding:11px}
-  #loginError{color:var(--red);font-size:.8rem;min-height:1.2em;margin-top:12px}
+  #loginError{color:var(--red);font-size:.8rem;min-height:1.2em;margin-top:12px;white-space:pre-line}
+  .auth-view[hidden]{display:none!important}.auth-view h3{font:700 1rem monospace;margin:14px 0 4px}.auth-links{display:flex;gap:8px}.auth-links button{width:50%;margin-top:10px}.login-card .link-button{background:transparent;border-color:transparent;color:var(--dim);text-decoration:underline}.login-card .link-button:hover{color:var(--accent)}
   #logoutButton{margin-top:7px}
   #appShell[hidden],#loginScreen[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <section class="login-screen" id="loginScreen">
-  <form class="login-card" id="loginForm">
+  <div class="login-card">
     <h2>InfraHub · TVs</h2>
-    <p>Acesso restrito. Entre com sua conta autorizada do InfraHub.</p>
-    <label for="loginEmail">E-mail
-      <input id="loginEmail" type="email" autocomplete="username" required>
-    </label>
-    <label for="loginPassword">Senha
-      <input id="loginPassword" type="password" autocomplete="current-password" required>
-    </label>
-    <button class="primary" id="loginSubmit" type="submit">Entrar</button>
-    <button id="loginMicrosoftButton" type="button">Entrar com Microsoft 365</button>
+    <p>Acesso restrito. Contas corporativas precisam ser confirmadas e aprovadas por um administrador.</p>
+    <form id="loginForm" class="auth-view">
+      <label for="loginEmail">E-mail corporativo
+        <input id="loginEmail" type="email" autocomplete="username" maxlength="254" required>
+      </label>
+      <label for="loginPassword">Senha
+        <input id="loginPassword" type="password" autocomplete="current-password" minlength="8" required>
+      </label>
+      <button class="primary" id="loginSubmit" type="submit">Entrar</button>
+      <button id="loginMicrosoftButton" type="button">Entrar com Microsoft 365</button>
+      <div class="auth-links"><button type="button" class="link-button" id="showRecovery">Esqueci minha senha</button><button type="button" class="link-button" id="showSignup">Criar conta</button></div>
+    </form>
+    <form id="recoveryForm" class="auth-view" hidden>
+      <h3>Redefinir senha</h3>
+      <p>Vamos enviar um código para seu e-mail. Use o código recebido para cadastrar uma nova senha.</p>
+      <label for="recoveryEmail">E-mail corporativo<input id="recoveryEmail" type="email" autocomplete="email" maxlength="254" required></label>
+      <button type="button" id="sendRecoveryCode">Enviar código</button>
+      <label for="recoveryCode">Código de confirmação<input id="recoveryCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]{6,10}" required></label>
+      <label for="newPassword">Nova senha<input id="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+      <label for="confirmNewPassword">Confirmar nova senha<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+      <button class="primary" id="resetPasswordSubmit" type="submit">Confirmar nova senha</button>
+      <button type="button" class="link-button" data-show-login>Voltar ao login</button>
+    </form>
+    <form id="signupForm" class="auth-view" hidden>
+      <h3>Criar conta</h3>
+      <p>Após confirmar o e-mail, a conta ficará pendente até um administrador liberar o acesso no Supabase.</p>
+      <label for="signupName">Nome completo<input id="signupName" type="text" autocomplete="name" maxlength="120" required></label>
+      <label for="signupEmail">E-mail corporativo<input id="signupEmail" type="email" autocomplete="email" maxlength="254" required></label>
+      <label for="signupPassword">Senha (mínimo 10 caracteres)<input id="signupPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+      <button class="primary" id="signupSubmit" type="submit">Criar conta e enviar código</button>
+      <label for="signupCode">Código recebido por e-mail<input id="signupCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]{6,10}"></label>
+      <button type="button" id="verifySignupCode">Confirmar e-mail</button>
+      <button type="button" class="link-button" data-show-login>Voltar ao login</button>
+    </form>
     <div id="loginError" role="status" aria-live="polite"></div>
-  </form>
+  </div>
 </section>
 <div id="appShell" hidden>
 <header>
@@ -257,7 +283,7 @@ async function aplicarSessao(session) {
 
   try {
     const email = String(session.user.email || '').trim().toLowerCase();
-    const allowedDomains = ['hospitalcare.com.br', 'hospitalveracruz.com.br'];
+    const allowedDomains = ['hospitalcare.com.br', 'hospitalveracruz.com.br', 'bragait.com'];
     const emailDomain = email.includes('@') ? email.split('@').pop() : '';
     if (!allowedDomains.includes(emailDomain)) {
       currentSession = null;
@@ -308,6 +334,27 @@ async function sairDashboard() {
 }
 
 
+const CORPORATE_DOMAINS = new Set(['hospitalcare.com.br', 'hospitalveracruz.com.br', 'bragait.com']);
+let signupEmailPending = '';
+
+function emailCorporativo(value) {
+  const email = String(value || '').trim().toLowerCase();
+  const parts = email.split('@');
+  return parts.length === 2 && parts[0].length > 0 && CORPORATE_DOMAINS.has(parts[1]);
+}
+
+function mostrarAuthView(view) {
+  document.querySelectorAll('.auth-view').forEach(form => { form.hidden = form.id !== view; });
+  document.getElementById('loginError').textContent = '';
+}
+
+document.getElementById('showRecovery').addEventListener('click', () => {
+  document.getElementById('recoveryEmail').value = document.getElementById('loginEmail').value.trim();
+  mostrarAuthView('recoveryForm');
+});
+document.getElementById('showSignup').addEventListener('click', () => mostrarAuthView('signupForm'));
+document.querySelectorAll('[data-show-login]').forEach(button => button.addEventListener('click', () => mostrarAuthView('loginForm')));
+
 document.getElementById('loginMicrosoftButton').addEventListener('click', async () => {
   if (authBusy) return;
   authBusy = true;
@@ -319,10 +366,7 @@ document.getElementById('loginMicrosoftButton').addEventListener('click', async 
   try {
     const { error } = await tvSupabase.auth.signInWithOAuth({
       provider: 'azure',
-      options: {
-        scopes: 'email openid profile',
-        redirectTo: window.location.origin + window.location.pathname
-      }
+      options: { scopes: 'email openid profile', redirectTo: window.location.origin + window.location.pathname }
     });
     if (error) throw error;
   } catch (error) {
@@ -343,17 +387,130 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
   button.textContent = 'Validando...';
   message.textContent = '';
   try {
-    const { error } = await tvSupabase.auth.signInWithPassword({
-      email: document.getElementById('loginEmail').value.trim(),
-      password: document.getElementById('loginPassword').value
-    });
-    if (error) message.textContent = 'Login não realizado. Confira as credenciais ou a autorização da conta.';
+    const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+    if (!emailCorporativo(email)) throw new Error('Use um e-mail @hospitalcare.com.br, @hospitalveracruz.com.br ou @bragait.com.');
+    const { error } = await tvSupabase.auth.signInWithPassword({ email, password: document.getElementById('loginPassword').value });
+    if (error) message.textContent = 'Login não realizado. Confira as credenciais ou aguarde a aprovação da conta.';
   } catch (error) {
-    message.textContent = 'Falha de conexão ao autenticar.';
+    message.textContent = error.message || 'Falha de conexão ao autenticar.';
   } finally {
     authBusy = false;
     button.disabled = false;
     button.textContent = 'Entrar';
+  }
+});
+
+document.getElementById('sendRecoveryCode').addEventListener('click', async () => {
+  const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
+  const button = document.getElementById('sendRecoveryCode');
+  const message = document.getElementById('loginError');
+  if (!emailCorporativo(email)) { message.textContent = 'Informe um e-mail corporativo permitido.'; return; }
+  button.disabled = true;
+  message.textContent = 'Solicitando código...';
+  try {
+    const { error } = await tvSupabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if (error) throw error;
+    message.textContent = 'Se a conta existir, um código será enviado. Confira também o spam.';
+  } catch (error) {
+    message.textContent = 'Não foi possível solicitar o código. Tente novamente mais tarde.';
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById('recoveryForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (authBusy) return;
+  const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
+  const token = document.getElementById('recoveryCode').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmNewPassword').value;
+  const message = document.getElementById('loginError');
+  if (!emailCorporativo(email)) { message.textContent = 'Informe um e-mail corporativo permitido.'; return; }
+  if (password.length < 10) { message.textContent = 'A nova senha deve ter pelo menos 10 caracteres.'; return; }
+  if (password !== confirmPassword) { message.textContent = 'As senhas não coincidem.'; return; }
+  authBusy = true;
+  const button = document.getElementById('resetPasswordSubmit');
+  button.disabled = true;
+  message.textContent = 'Validando código...';
+  try {
+    const { error: verifyError } = await tvSupabase.auth.verifyOtp({ email, token, type: 'recovery' });
+    if (verifyError) throw verifyError;
+    const { error: updateError } = await tvSupabase.auth.updateUser({ password });
+    if (updateError) throw updateError;
+    await tvSupabase.auth.signOut();
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('recoveryForm').reset();
+    mostrarAuthView('loginForm');
+    message.textContent = 'Senha redefinida. Entre com sua nova senha.';
+  } catch (error) {
+    message.textContent = 'Não foi possível redefinir a senha. Confira o código e tente novamente.';
+  } finally {
+    authBusy = false;
+    button.disabled = false;
+  }
+});
+
+document.getElementById('signupForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (authBusy) return;
+  const name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim().toLowerCase();
+  const password = document.getElementById('signupPassword').value;
+  const message = document.getElementById('loginError');
+  if (!emailCorporativo(email)) { message.textContent = 'Use um e-mail @hospitalcare.com.br, @hospitalveracruz.com.br ou @bragait.com.'; return; }
+  if (password.length < 10) { message.textContent = 'A senha deve ter pelo menos 10 caracteres.'; return; }
+  authBusy = true;
+  const button = document.getElementById('signupSubmit');
+  button.disabled = true;
+  message.textContent = 'Criando conta...';
+  try {
+    const { data, error } = await tvSupabase.auth.signUp({
+      email, password,
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) throw error;
+    signupEmailPending = email;
+    document.getElementById('signupCode').required = true;
+    message.textContent = 'Se o cadastro for aceito, enviaremos um código de confirmação. Digite-o abaixo.';
+    if (data.session) {
+      await tvSupabase.auth.signOut();
+      message.textContent = 'Cadastro recebido. Confirme o e-mail e aguarde a aprovação de um administrador.';
+    }
+  } catch (error) {
+    message.textContent = 'Não foi possível criar a conta. Confira o e-mail e tente novamente.';
+  } finally {
+    authBusy = false;
+    button.disabled = false;
+  }
+});
+
+document.getElementById('verifySignupCode').addEventListener('click', async () => {
+  const email = signupEmailPending || document.getElementById('signupEmail').value.trim().toLowerCase();
+  const token = document.getElementById('signupCode').value.trim();
+  const message = document.getElementById('loginError');
+  if (!emailCorporativo(email) || !token) { message.textContent = 'Informe o e-mail usado no cadastro e o código recebido.'; return; }
+  const button = document.getElementById('verifySignupCode');
+  button.disabled = true;
+  message.textContent = 'Confirmando e-mail...';
+  try {
+    const { error } = await tvSupabase.auth.verifyOtp({ email, token, type: 'signup' });
+    if (error) throw error;
+    await tvSupabase.auth.signOut();
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('signupForm').reset();
+    signupEmailPending = '';
+    mostrarAuthView('loginForm');
+    message.textContent = 'E-mail confirmado. Sua conta ficará pendente até um administrador aprovar o acesso.';
+  } catch (error) {
+    message.textContent = 'Código inválido ou expirado. Solicite um novo código e tente novamente.';
+  } finally {
+    button.disabled = false;
   }
 });
 
