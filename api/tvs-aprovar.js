@@ -1,5 +1,5 @@
 const { validarUsuarioDashboard } = require('../dashboardAuth');
-const API_URL = 'https://infrahub-monitor-api.vercel.app';
+const API_URL = process.env.INFRAHUB_MONITOR_API_URL;
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ erro: 'method not allowed' });
@@ -13,6 +13,8 @@ module.exports = async (req, res) => {
   if (!id || !['aprovar', 'revogar'].includes(action)) {
     return res.status(400).json({ erro: 'id e action (aprovar|revogar) são obrigatórios' });
   }
+
+  if (!API_URL) return res.status(503).json({ erro: 'INFRAHUB_MONITOR_API_URL não configurada neste ambiente' });
 
   try {
     const response = await fetch(`${API_URL}/api/admin/aprovar-maquina`, {
