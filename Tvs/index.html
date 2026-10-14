@@ -102,6 +102,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
       <input id="loginPassword" type="password" autocomplete="current-password" required>
     </label>
     <button class="primary" id="loginSubmit" type="submit">Entrar</button>
+    <button id="loginMicrosoftButton" type="button">Entrar com Microsoft 365</button>
     <div id="loginError" role="status" aria-live="polite"></div>
   </form>
 </section>
@@ -255,6 +256,16 @@ async function aplicarSessao(session) {
   }
 
   try {
+    const email = String(session.user.email || '').trim().toLowerCase();
+    const allowedDomains = ['hospitalcare.com.br', 'hospitalveracruz.com.br'];
+    const emailDomain = email.includes('@') ? email.split('@').pop() : '';
+    if (!allowedDomains.includes(emailDomain)) {
+      currentSession = null;
+      await tvSupabase.auth.signOut();
+      mostrarLogin('Use uma conta corporativa @hospitalcare.com.br ou @hospitalveracruz.com.br.');
+      return;
+    }
+
     const { data: profile, error } = await tvSupabase
       .from('profiles')
       .select('role,ativo')
@@ -295,6 +306,32 @@ async function sairDashboard() {
   currentRole = null;
   mostrarLogin('Sessão encerrada.');
 }
+
+
+document.getElementById('loginMicrosoftButton').addEventListener('click', async () => {
+  if (authBusy) return;
+  authBusy = true;
+  const button = document.getElementById('loginMicrosoftButton');
+  const message = document.getElementById('loginError');
+  button.disabled = true;
+  button.textContent = 'Redirecionando para Microsoft...';
+  message.textContent = '';
+  try {
+    const { error } = await tvSupabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        scopes: 'email openid profile',
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) throw error;
+  } catch (error) {
+    message.textContent = 'Não foi possível iniciar o login Microsoft 365. Verifique a configuração do provedor.';
+    button.disabled = false;
+    button.textContent = 'Entrar com Microsoft 365';
+    authBusy = false;
+  }
+});
 
 document.getElementById('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
