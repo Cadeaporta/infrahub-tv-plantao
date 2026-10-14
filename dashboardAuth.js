@@ -25,6 +25,13 @@ async function validarUsuarioDashboard(req) {
     const user = await authResponse.json();
     if (!user || !user.id) return { ok: false, status: 401, erro: 'usuário inválido' };
 
+    const email = String(user.email || '').trim().toLowerCase();
+    const allowedDomains = new Set(['hospitalcare.com.br', 'hospitalveracruz.com.br']);
+    const emailDomain = email.includes('@') ? email.split('@').pop() : '';
+    if (!allowedDomains.has(emailDomain)) {
+      return { ok: false, status: 403, erro: 'use uma conta corporativa @hospitalcare.com.br ou @hospitalveracruz.com.br' };
+    }
+
     const profileUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
     profileUrl.searchParams.set('id', `eq.${user.id}`);
     profileUrl.searchParams.set('select', 'id,role,ativo');
