@@ -1,5 +1,5 @@
 const { validarUsuarioDashboard } = require('../dashboardAuth');
-const API_URL = 'https://infrahub-monitor-api.vercel.app';
+const API_URL = process.env.INFRAHUB_MONITOR_API_URL;
 
 module.exports = async (req, res) => {
   if (!['GET', 'PUT', 'DELETE'].includes(req.method)) {
@@ -11,6 +11,8 @@ module.exports = async (req, res) => {
   if (req.method !== 'GET' && auth.role !== 'admin') {
     return res.status(403).json({ erro: 'somente administradores podem alterar ou excluir TVs' });
   }
+
+  if (!API_URL) return res.status(503).json({ erro: 'INFRAHUB_MONITOR_API_URL não configurada neste ambiente' });
 
   try {
     const resposta = await fetch(`${API_URL}/api/admin/maquinas`, {
