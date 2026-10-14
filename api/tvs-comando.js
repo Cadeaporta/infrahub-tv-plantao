@@ -1,5 +1,5 @@
 const { validarUsuarioDashboard } = require('../dashboardAuth');
-const API_URL = 'https://infrahub-monitor-api.vercel.app';
+const API_URL = process.env.INFRAHUB_MONITOR_API_URL;
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -39,6 +39,8 @@ module.exports = async (req, res) => {
       return res.status(400).json({ erro: 'Informe de 1 a 10 URLs HTTP/HTTPS válidas' });
     }
   }
+
+  if (!API_URL) return res.status(503).json({ erro: 'INFRAHUB_MONITOR_API_URL não configurada neste ambiente' });
 
   try {
     const resposta = await fetch(`${API_URL}/api/admin/comandos`, {
