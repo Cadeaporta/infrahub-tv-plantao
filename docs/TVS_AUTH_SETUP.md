@@ -68,3 +68,31 @@ A aplicação dessa política deve ser coordenada com a liberação do dashboard
 Esta branch inclui autenticação do dashboard, permissões por papel, aprovação/revogação de TVs, geração de códigos de cadastro de uso único e gestão de perfis. O backend e a extensão correspondentes devem estar no mesmo ambiente antes dos testes integrados.
 
 A migração SQL não é aplicada automaticamente. A política anônima de `maquinas_tv_status` continua intacta até confirmar que a página Plantão funciona sem depender de leitura anônima direta dessa tabela. Não liberar para produção antes de validar Preview, provisionar o primeiro administrador e executar os testes integrados.
+
+
+## Recuperação de senha e cadastro com aprovação
+
+A tela de TVs oferece recuperação por código de e-mail e criação de conta. Para que os códigos sejam exibidos no e-mail, configure os modelos no Supabase:
+
+1. Em **Authentication → URL Configuration**, defina a **Site URL** como `https://infrahub-tv-plantao-5.vercel.app`.
+2. Em **Redirect URLs**, permita `https://infrahub-tv-plantao-5.vercel.app/Tvs/` e o caminho sem a barra final. Adicione URLs de preview apenas se forem usadas para testes.
+3. Em **Authentication → Email Templates → Confirm signup**, use o token de uso único no conteúdo do e-mail com `{{ .Token }}` (não `{{ .ConfirmationURL }}`).
+4. Em **Authentication → Email Templates → Reset Password**, use também `{{ .Token }}`. O usuário informa esse código na tela, e o código é validado pelo Supabase Auth.
+5. Confira as configurações de expiração e limite de envio de e-mails do projeto. Não desative a confirmação de e-mail para contornar falhas.
+
+### Aprovação administrativa
+
+A migration `supabase/migrations/20261014_profiles_signup_pending.sql` cria um perfil `tecnico` com `ativo = false` automaticamente quando uma nova conta Auth é criada. Ela preserva perfis já existentes. **A migration precisa ser aplicada no projeto Supabase antes de habilitar o cadastro em produção.**
+
+Após verificar a identidade e a necessidade de acesso, o administrador pode localizar o usuário em **Authentication → Users** e ativar somente o perfil correspondente em **SQL Editor**, usando o ID do usuário verificado:
+
+```sql
+update public.profiles
+set ativo = true, role = 'tecnico'
+where id = 'UUID-DO-USUARIO'
+  and ativo = false;
+```
+
+Para aprovar, confirme que o e-mail pertence à pessoa e que ela deve acessar o InfraHub. Não transforme novos cadastros em administradores. A conta administrativa deve continuar sendo concedida manualmente pelo administrador.
+
+Os domínios aceitos pela tela e pela API são `hospitalcare.com.br`, `hospitalveracruz.com.br` e `bragait.com`. O domínio por si só não concede acesso: o perfil precisa existir, estar ativo e ter uma função autorizada.
