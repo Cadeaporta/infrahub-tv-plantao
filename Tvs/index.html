@@ -104,32 +104,7 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
         <input id="loginPassword" type="password" autocomplete="current-password" minlength="8" required>
       </label>
       <button class="primary" id="loginSubmit" type="submit">Entrar</button>
-      <button id="loginMicrosoftButton" type="button">Entrar com Microsoft 365</button>
-      <div class="auth-links"><button type="button" class="link-button" id="showRecovery">Esqueci minha senha</button><button type="button" class="link-button" id="showSignup">Criar conta</button></div>
-    </form>
-    <form id="recoveryForm" class="auth-view" hidden>
-      <h3>Redefinir senha</h3>
-      <p>Informe seu e-mail corporativo. Enviaremos um link para você criar uma nova senha.</p>
-      <label for="recoveryEmail">E-mail corporativo<input id="recoveryEmail" type="email" autocomplete="email" maxlength="254" required></label>
-      <button type="button" id="sendRecoveryCode">Enviar link de recuperação</button>
-      <div id="recoveryPasswordFields" hidden>
-        <p>Defina sua nova senha abaixo.</p>
-        <label for="newPassword">Nova senha<input id="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>
-        <label for="confirmNewPassword">Confirmar nova senha<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="10" required></label>
-        <button class="primary" id="resetPasswordSubmit" type="submit">Salvar nova senha</button>
-      </div>
-      <button type="button" class="link-button" data-show-login>Voltar ao login</button>
-    </form>
-    <form id="signupForm" class="auth-view" hidden>
-      <h3>Criar conta</h3>
-      <p>Após confirmar o e-mail, a conta ficará pendente até um administrador liberar o acesso no Supabase.</p>
-      <label for="signupName">Nome completo<input id="signupName" type="text" autocomplete="name" maxlength="120" required></label>
-      <label for="signupEmail">E-mail corporativo<input id="signupEmail" type="email" autocomplete="email" maxlength="254" required></label>
-      <label for="signupPassword">Senha (mínimo 10 caracteres)<input id="signupPassword" type="password" autocomplete="new-password" minlength="10" required></label>
-      <button class="primary" id="signupSubmit" type="submit">Criar conta e enviar código</button>
-      <label for="signupCode">Código recebido por e-mail<input id="signupCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]{6,10}"></label>
-      <button type="button" id="verifySignupCode">Confirmar e-mail</button>
-      <button type="button" class="link-button" data-show-login>Voltar ao login</button>
+      <p style="font-size:.75rem;color:var(--dim)">Acesso liberado por um administrador. Se precisar de uma conta, solicite ao responsável pelo painel.</p>
     </form>
     <div id="loginError" role="status" aria-live="polite"></div>
   </div>
@@ -337,47 +312,12 @@ async function sairDashboard() {
 
 
 const CORPORATE_DOMAINS = new Set(['hospitalcare.com.br', 'hospitalveracruz.com.br', 'bragait.com']);
-let signupEmailPending = '';
 
 function emailCorporativo(value) {
   const email = String(value || '').trim().toLowerCase();
   const parts = email.split('@');
   return parts.length === 2 && parts[0].length > 0 && CORPORATE_DOMAINS.has(parts[1]);
 }
-
-function mostrarAuthView(view) {
-  document.querySelectorAll('.auth-view').forEach(form => { form.hidden = form.id !== view; });
-  document.getElementById('loginError').textContent = '';
-}
-
-document.getElementById('showRecovery').addEventListener('click', () => {
-  document.getElementById('recoveryEmail').value = document.getElementById('loginEmail').value.trim();
-  mostrarAuthView('recoveryForm');
-});
-document.getElementById('showSignup').addEventListener('click', () => mostrarAuthView('signupForm'));
-document.querySelectorAll('[data-show-login]').forEach(button => button.addEventListener('click', () => mostrarAuthView('loginForm')));
-
-document.getElementById('loginMicrosoftButton').addEventListener('click', async () => {
-  if (authBusy) return;
-  authBusy = true;
-  const button = document.getElementById('loginMicrosoftButton');
-  const message = document.getElementById('loginError');
-  button.disabled = true;
-  button.textContent = 'Redirecionando para Microsoft...';
-  message.textContent = '';
-  try {
-    const { error } = await tvSupabase.auth.signInWithOAuth({
-      provider: 'azure',
-      options: { scopes: 'email openid profile', redirectTo: window.location.origin + window.location.pathname }
-    });
-    if (error) throw error;
-  } catch (error) {
-    message.textContent = 'Não foi possível iniciar o login Microsoft 365. Verifique a configuração do provedor.';
-    button.disabled = false;
-    button.textContent = 'Entrar com Microsoft 365';
-    authBusy = false;
-  }
-});
 
 document.getElementById('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -399,132 +339,6 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     authBusy = false;
     button.disabled = false;
     button.textContent = 'Entrar';
-  }
-});
-
-function ativarCamposNovaSenha() {
-  document.getElementById('recoveryEmail').required = false;
-  document.getElementById('recoveryEmail').disabled = true;
-  document.getElementById('sendRecoveryCode').hidden = true;
-  document.getElementById('recoveryPasswordFields').hidden = false;
-  document.getElementById('newPassword').required = true;
-  document.getElementById('confirmNewPassword').required = true;
-  document.getElementById('loginError').textContent = 'Link validado. Cadastre sua nova senha.';
-}
-
-document.getElementById('sendRecoveryCode').addEventListener('click', async () => {
-  const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
-  const button = document.getElementById('sendRecoveryCode');
-  const message = document.getElementById('loginError');
-  if (!emailCorporativo(email)) { message.textContent = 'Informe um e-mail corporativo permitido.'; return; }
-  button.disabled = true;
-  message.textContent = 'Enviando link de recuperação...';
-  try {
-    const { error } = await tvSupabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + window.location.pathname
-    });
-    if (error) throw error;
-    message.textContent = 'Se a conta existir, enviaremos um link de recuperação. Confira seu e-mail e a pasta de spam.';
-  } catch (error) {
-    message.textContent = 'Não foi possível solicitar a recuperação. Tente novamente mais tarde.';
-  } finally {
-    button.disabled = false;
-  }
-});
-
-document.getElementById('recoveryForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (authBusy) return;
-  const password = document.getElementById('newPassword').value;
-  const confirmPassword = document.getElementById('confirmNewPassword').value;
-  const message = document.getElementById('loginError');
-  if (password.length < 10) { message.textContent = 'A nova senha deve ter pelo menos 10 caracteres.'; return; }
-  if (password !== confirmPassword) { message.textContent = 'As senhas não coincidem.'; return; }
-  authBusy = true;
-  const button = document.getElementById('resetPasswordSubmit');
-  button.disabled = true;
-  message.textContent = 'Salvando nova senha...';
-  try {
-    const { error } = await tvSupabase.auth.updateUser({ password });
-    if (error) throw error;
-    const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
-    await tvSupabase.auth.signOut();
-    document.getElementById('loginEmail').value = email;
-    document.getElementById('recoveryForm').reset();
-    document.getElementById('recoveryEmail').disabled = false;
-    document.getElementById('recoveryEmail').required = true;
-    document.getElementById('sendRecoveryCode').hidden = false;
-    document.getElementById('recoveryPasswordFields').hidden = true;
-    document.getElementById('newPassword').required = false;
-    document.getElementById('confirmNewPassword').required = false;
-    mostrarAuthView('loginForm');
-    message.textContent = 'Senha redefinida. Entre com sua nova senha.';
-  } catch (error) {
-    message.textContent = 'O link de recuperação expirou ou é inválido. Solicite outro link.';
-  } finally {
-    authBusy = false;
-    button.disabled = false;
-  }
-});
-
-document.getElementById('signupForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (authBusy) return;
-  const name = document.getElementById('signupName').value.trim();
-  const email = document.getElementById('signupEmail').value.trim().toLowerCase();
-  const password = document.getElementById('signupPassword').value;
-  const message = document.getElementById('loginError');
-  if (!emailCorporativo(email)) { message.textContent = 'Use um e-mail @hospitalcare.com.br, @hospitalveracruz.com.br ou @bragait.com.'; return; }
-  if (password.length < 10) { message.textContent = 'A senha deve ter pelo menos 10 caracteres.'; return; }
-  authBusy = true;
-  const button = document.getElementById('signupSubmit');
-  button.disabled = true;
-  message.textContent = 'Criando conta...';
-  try {
-    const { data, error } = await tvSupabase.auth.signUp({
-      email, password,
-      options: {
-        data: { full_name: name },
-        emailRedirectTo: window.location.origin + window.location.pathname
-      }
-    });
-    if (error) throw error;
-    signupEmailPending = email;
-    document.getElementById('signupCode').required = true;
-    message.textContent = 'Se o cadastro for aceito, enviaremos um código de confirmação. Digite-o abaixo.';
-    if (data.session) {
-      await tvSupabase.auth.signOut();
-      message.textContent = 'Cadastro recebido. Confirme o e-mail e aguarde a aprovação de um administrador.';
-    }
-  } catch (error) {
-    message.textContent = 'Não foi possível criar a conta. Confira o e-mail e tente novamente.';
-  } finally {
-    authBusy = false;
-    button.disabled = false;
-  }
-});
-
-document.getElementById('verifySignupCode').addEventListener('click', async () => {
-  const email = signupEmailPending || document.getElementById('signupEmail').value.trim().toLowerCase();
-  const token = document.getElementById('signupCode').value.trim();
-  const message = document.getElementById('loginError');
-  if (!emailCorporativo(email) || !token) { message.textContent = 'Informe o e-mail usado no cadastro e o código recebido.'; return; }
-  const button = document.getElementById('verifySignupCode');
-  button.disabled = true;
-  message.textContent = 'Confirmando e-mail...';
-  try {
-    const { error } = await tvSupabase.auth.verifyOtp({ email, token, type: 'signup' });
-    if (error) throw error;
-    await tvSupabase.auth.signOut();
-    document.getElementById('loginEmail').value = email;
-    document.getElementById('signupForm').reset();
-    signupEmailPending = '';
-    mostrarAuthView('loginForm');
-    message.textContent = 'E-mail confirmado. Sua conta ficará pendente até um administrador aprovar o acesso.';
-  } catch (error) {
-    message.textContent = 'Código inválido ou expirado. Solicite um novo código e tente novamente.';
-  } finally {
-    button.disabled = false;
   }
 });
 
@@ -1119,18 +933,7 @@ window.addEventListener('pageshow', (event) => {
     carregar();
   }
 });
-let recoveryCallbackHandled = false;
 tvSupabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'PASSWORD_RECOVERY' && !recoveryCallbackHandled) {
-    recoveryCallbackHandled = true;
-    setTimeout(() => {
-      mostrarLogin();
-      mostrarAuthView('recoveryForm');
-      document.getElementById('recoveryEmail').value = session?.user?.email || '';
-      ativarCamposNovaSenha();
-    }, 0);
-    return;
-  }
   if (event === 'SIGNED_OUT') {
     currentSession = null;
     currentRole = null;
@@ -1140,33 +943,8 @@ tvSupabase.auth.onAuthStateChange((event, session) => {
 
 (async () => {
   const { data, error } = await tvSupabase.auth.getSession();
-  if (error) {
-    mostrarLogin('Não foi possível recuperar a sessão. Entre novamente.');
-    return;
-  }
-
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const query = new URLSearchParams(window.location.search);
-  const callbackType = hash.get('type') || query.get('type');
-  const hasRecoveryTokens = (hash.has('access_token') && hash.has('refresh_token')) ||
-    (query.has('code') && callbackType === 'recovery');
-
-  if (callbackType === 'recovery' || hasRecoveryTokens) {
-    recoveryCallbackHandled = true;
-    mostrarLogin();
-    mostrarAuthView('recoveryForm');
-    document.getElementById('recoveryEmail').value = data.session?.user?.email || '';
-    if (data.session) {
-      ativarCamposNovaSenha();
-    } else {
-      document.getElementById('loginError').textContent = 'Validando link de recuperação...';
-      // Supabase processa o callback e emite PASSWORD_RECOVERY ao estabelecer a sessão.
-      recoveryCallbackHandled = false;
-    }
-    return;
-  }
-
-  await aplicarSessao(data.session);
+  if (error) mostrarLogin('Não foi possível recuperar a sessão. Entre novamente.');
+  else await aplicarSessao(data.session);
 })();
 </script>
 </body>
