@@ -137,6 +137,14 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
   <p>O cadastro seguro será realizado pelo helper instalado via Atera. Novos dispositivos aparecem como <strong>PENDENTE</strong> e só começam a comunicar depois da aprovação de um administrador. Não cole segredos administrativos no navegador.</p>
 </section>
 
+<section class="command-panel" id="adminUsersPanel" hidden>
+  <h2>👥 Administração de acessos</h2>
+  <p>Ative ou bloqueie contas e defina o nível de acesso. Alterações são aplicadas aos perfis existentes no Supabase.</p>
+  <div style="display:flex;justify-content:flex-end;margin:8px 0"><button type="button" id="refreshAdminUsers">↻ Atualizar usuários</button></div>
+  <div id="adminUsersStatus" role="status" style="font-size:.78rem;color:var(--dim);margin-bottom:8px"></div>
+  <div id="adminUsersList" style="display:grid;gap:8px"></div>
+</section>
+
 <section class="command-panel profile-panel" hidden>
   <h2>🗂 Perfis de navegação</h2>
   <p>Crie perfis reutilizáveis e atribua um a cada TV. Use uma URL HTTP/HTTPS por linha. A rotação respeita intervalo mínimo de 30 segundos.</p>
@@ -243,6 +251,8 @@ function mostrarDashboard() {
   document.getElementById('appShell').hidden = false;
   document.querySelector('.command-panel').hidden = currentRole !== 'admin';
   document.querySelector('.profile-panel').hidden = currentRole !== 'admin';
+  document.getElementById('adminUsersPanel').hidden = currentRole !== 'admin';
+  if (currentRole === 'admin') carregarUsuariosAdmin();
 }
 
 async function aplicarSessao(session) {
@@ -607,6 +617,61 @@ document.getElementById('copyEnrollmentCode').addEventListener('click', async ()
   }
 });
 
+async function carregarUsuariosAdmin() {
+  if (currentRole !== 'admin') return;
+  const status = document.getElementById('adminUsersStatus');
+  const list = document.getElementById('adminUsersList');
+  status.textContent = 'Carregando contas...';
+  try {
+    const { data, error } = await tvSupabase
+      .from('profiles')
+      .select('id,full_name,role,ativo,created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    list.innerHTML = (data || []).map(p => {
+      const self = p.id === currentSession?.user?.id;
+      return `<article class="tv" style="padding:12px">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+          <div style="min-width:180px;flex:1">
+            <div style="font-weight:700">${esc(p.full_name || 'Usuário sem nome')}</div>
+            <div class="tv-id">${esc(p.id)}</div>
+            <div style="font-size:.72rem;color:var(--dim);margin-top:4px">${p.role === 'admin' ? 'Administrador' : 'Técnico'} · ${p.ativo ? 'Ativo' : 'Bloqueado'}${self ? ' · Sua conta' : ''}</div>
+          </div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
+            <select aria-label="Permissão do usuário" data-user-role="${esc(p.id)}" ${self ? 'disabled' : ''} style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px">
+              <option value="tecnico" ${p.role === 'tecnico' ? 'selected' : ''}>Técnico</option>
+              <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Administrador</option>
+            </select>
+            <button type="button" data-user-active="${esc(p.id)}" data-next-active="${p.ativo ? 'false' : 'true'}" ${self ? 'disabled title="Não é possível bloquear a própria sessão"' : ''}>${p.ativo ? 'Bloquear' : 'Ativar'}</button>
+          </div>
+        </div>
+      </article>`;
+    }).join('') || '<div class="empty">Nenhuma conta encontrada.</div>';
+    status.textContent = `${data?.length || 0} perfil(is) encontrado(s).`;
+    list.querySelectorAll('[data-user-role]').forEach(el => el.addEventListener('change', () => atualizarPerfilAdmin(el.dataset.userRole, { role: el.value })));
+    list.querySelectorAll('[data-user-active]').forEach(el => el.addEventListener('click', () => atualizarPerfilAdmin(el.dataset.userActive, { ativo: el.dataset.nextActive === 'true' })));
+  } catch (error) {
+    status.textContent = 'Falha ao carregar usuários: ' + (error.message || 'erro desconhecido');
+  }
+}
+
+async function atualizarPerfilAdmin(id, changes) {
+  if (currentRole !== 'admin' || id === currentSession?.user?.id) return;
+  const status = document.getElementById('adminUsersStatus');
+  status.textContent = 'Salvando permissões...';
+  try {
+    const { error } = await tvSupabase.from('profiles').update(changes).eq('id', id);
+    if (error) throw error;
+    status.textContent = 'Permissões atualizadas.';
+    await carregarUsuariosAdmin();
+  } catch (error) {
+    status.textContent = 'Não foi possível alterar o acesso: ' + (error.message || 'verifique as políticas RLS do Supabase');
+    await carregarUsuariosAdmin();
+  }
+}
+
+document.getElementById('refreshAdminUsers').addEventListener('click', carregarUsuariosAdmin);
+
 async function carregarPerfis() {
   if (!currentRole) { perfis = []; return; }
   try {
@@ -875,15 +940,7 @@ const TV_SUPABASE_URL = 'https://koiiqafjmlnsdkijnwmi.supabase.co';
 const TV_SUPABASE_ANON_KEY = 'sb_publishable_Uv8bl8Ont7pAQju9WrBJww_aoR2KTSp';
 const tvSupabase = window.supabase.createClient(TV_SUPABASE_URL, TV_SUPABASE_ANON_KEY);
 
-tvSupabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'PASSWORD_RECOVERY') {
-    setTimeout(() => {
-      mostrarAuthView('recoveryForm');
-      document.getElementById('recoveryEmail').value = session?.user?.email || '';
-      ativarCamposNovaSenha();
-    }, 0);
-    return;
-  }
+tvSupabase.auth.onAuthStateChange((_event, session) => {
   setTimeout(() => aplicarSessao(session), 0);
 });
 
