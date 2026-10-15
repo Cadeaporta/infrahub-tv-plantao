@@ -1119,10 +1119,54 @@ window.addEventListener('pageshow', (event) => {
     carregar();
   }
 });
+let recoveryCallbackHandled = false;
+tvSupabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY' && !recoveryCallbackHandled) {
+    recoveryCallbackHandled = true;
+    setTimeout(() => {
+      mostrarLogin();
+      mostrarAuthView('recoveryForm');
+      document.getElementById('recoveryEmail').value = session?.user?.email || '';
+      ativarCamposNovaSenha();
+    }, 0);
+    return;
+  }
+  if (event === 'SIGNED_OUT') {
+    currentSession = null;
+    currentRole = null;
+    mostrarLogin();
+  }
+});
+
 (async () => {
   const { data, error } = await tvSupabase.auth.getSession();
-  if (error) mostrarLogin('Não foi possível recuperar a sessão. Entre novamente.');
-  else await aplicarSessao(data.session);
+  if (error) {
+    mostrarLogin('Não foi possível recuperar a sessão. Entre novamente.');
+    return;
+  }
+
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  const callbackType = hash.get('type') || query.get('type');
+  const hasRecoveryTokens = (hash.has('access_token') && hash.has('refresh_token')) ||
+    (query.has('code') && callbackType === 'recovery');
+
+  if (callbackType === 'recovery' || hasRecoveryTokens) {
+    recoveryCallbackHandled = true;
+    mostrarLogin();
+    mostrarAuthView('recoveryForm');
+    document.getElementById('recoveryEmail').value = data.session?.user?.email || '';
+    if (data.session) {
+      ativarCamposNovaSenha();
+    } else {
+      document.getElementById('loginError').textContent = 'Validando link de recuperação...';
+      // Supabase processa o callback e emite PASSWORD_RECOVERY ao estabelecer a sessão.
+      recoveryCallbackHandled = false;
+    }
+    return;
+  }
+
+  await aplicarSessao(data.session);
 })();
 </script>
 </body>
