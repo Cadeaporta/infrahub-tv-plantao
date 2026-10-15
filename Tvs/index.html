@@ -288,7 +288,7 @@ async function aplicarSessao(session) {
     if (!allowedDomains.includes(emailDomain)) {
       currentSession = null;
       await tvSupabase.auth.signOut();
-      mostrarLogin('Use uma conta corporativa @hospitalcare.com.br ou @hospitalveracruz.com.br.');
+      mostrarLogin('Use uma conta corporativa @hospitalcare.com.br, @hospitalveracruz.com.br ou @bragait.com.');
       return;
     }
 
