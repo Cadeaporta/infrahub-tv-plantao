@@ -109,13 +109,15 @@ button.primary{background:var(--accent);color:var(--bg);border:none;font-weight:
     </form>
     <form id="recoveryForm" class="auth-view" hidden>
       <h3>Redefinir senha</h3>
-      <p>Vamos enviar um código para seu e-mail. Use o código recebido para cadastrar uma nova senha.</p>
+      <p>Informe seu e-mail corporativo. Enviaremos um link para você criar uma nova senha.</p>
       <label for="recoveryEmail">E-mail corporativo<input id="recoveryEmail" type="email" autocomplete="email" maxlength="254" required></label>
-      <button type="button" id="sendRecoveryCode">Enviar código</button>
-      <label for="recoveryCode">Código de confirmação<input id="recoveryCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]{6,10}" required></label>
-      <label for="newPassword">Nova senha<input id="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>
-      <label for="confirmNewPassword">Confirmar nova senha<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="10" required></label>
-      <button class="primary" id="resetPasswordSubmit" type="submit">Confirmar nova senha</button>
+      <button type="button" id="sendRecoveryCode">Enviar link de recuperação</button>
+      <div id="recoveryPasswordFields" hidden>
+        <p>Defina sua nova senha abaixo.</p>
+        <label for="newPassword">Nova senha<input id="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+        <label for="confirmNewPassword">Confirmar nova senha<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="10" required></label>
+        <button class="primary" id="resetPasswordSubmit" type="submit">Salvar nova senha</button>
+      </div>
       <button type="button" class="link-button" data-show-login>Voltar ao login</button>
     </form>
     <form id="signupForm" class="auth-view" hidden>
@@ -400,21 +402,31 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
   }
 });
 
+function ativarCamposNovaSenha() {
+  document.getElementById('recoveryEmail').required = false;
+  document.getElementById('recoveryEmail').disabled = true;
+  document.getElementById('sendRecoveryCode').hidden = true;
+  document.getElementById('recoveryPasswordFields').hidden = false;
+  document.getElementById('newPassword').required = true;
+  document.getElementById('confirmNewPassword').required = true;
+  document.getElementById('loginError').textContent = 'Link validado. Cadastre sua nova senha.';
+}
+
 document.getElementById('sendRecoveryCode').addEventListener('click', async () => {
   const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
   const button = document.getElementById('sendRecoveryCode');
   const message = document.getElementById('loginError');
   if (!emailCorporativo(email)) { message.textContent = 'Informe um e-mail corporativo permitido.'; return; }
   button.disabled = true;
-  message.textContent = 'Solicitando código...';
+  message.textContent = 'Enviando link de recuperação...';
   try {
     const { error } = await tvSupabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + window.location.pathname
     });
     if (error) throw error;
-    message.textContent = 'Se a conta existir, um código será enviado. Confira também o spam.';
+    message.textContent = 'Se a conta existir, enviaremos um link de recuperação. Confira seu e-mail e a pasta de spam.';
   } catch (error) {
-    message.textContent = 'Não foi possível solicitar o código. Tente novamente mais tarde.';
+    message.textContent = 'Não foi possível solicitar a recuperação. Tente novamente mais tarde.';
   } finally {
     button.disabled = false;
   }
@@ -423,30 +435,32 @@ document.getElementById('sendRecoveryCode').addEventListener('click', async () =
 document.getElementById('recoveryForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (authBusy) return;
-  const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
-  const token = document.getElementById('recoveryCode').value.trim();
   const password = document.getElementById('newPassword').value;
   const confirmPassword = document.getElementById('confirmNewPassword').value;
   const message = document.getElementById('loginError');
-  if (!emailCorporativo(email)) { message.textContent = 'Informe um e-mail corporativo permitido.'; return; }
   if (password.length < 10) { message.textContent = 'A nova senha deve ter pelo menos 10 caracteres.'; return; }
   if (password !== confirmPassword) { message.textContent = 'As senhas não coincidem.'; return; }
   authBusy = true;
   const button = document.getElementById('resetPasswordSubmit');
   button.disabled = true;
-  message.textContent = 'Validando código...';
+  message.textContent = 'Salvando nova senha...';
   try {
-    const { error: verifyError } = await tvSupabase.auth.verifyOtp({ email, token, type: 'recovery' });
-    if (verifyError) throw verifyError;
-    const { error: updateError } = await tvSupabase.auth.updateUser({ password });
-    if (updateError) throw updateError;
+    const { error } = await tvSupabase.auth.updateUser({ password });
+    if (error) throw error;
+    const email = document.getElementById('recoveryEmail').value.trim().toLowerCase();
     await tvSupabase.auth.signOut();
     document.getElementById('loginEmail').value = email;
     document.getElementById('recoveryForm').reset();
+    document.getElementById('recoveryEmail').disabled = false;
+    document.getElementById('recoveryEmail').required = true;
+    document.getElementById('sendRecoveryCode').hidden = false;
+    document.getElementById('recoveryPasswordFields').hidden = true;
+    document.getElementById('newPassword').required = false;
+    document.getElementById('confirmNewPassword').required = false;
     mostrarAuthView('loginForm');
     message.textContent = 'Senha redefinida. Entre com sua nova senha.';
   } catch (error) {
-    message.textContent = 'Não foi possível redefinir a senha. Confira o código e tente novamente.';
+    message.textContent = 'O link de recuperação expirou ou é inválido. Solicite outro link.';
   } finally {
     authBusy = false;
     button.disabled = false;
@@ -1047,7 +1061,15 @@ const TV_SUPABASE_URL = 'https://koiiqafjmlnsdkijnwmi.supabase.co';
 const TV_SUPABASE_ANON_KEY = 'sb_publishable_Uv8bl8Ont7pAQju9WrBJww_aoR2KTSp';
 const tvSupabase = window.supabase.createClient(TV_SUPABASE_URL, TV_SUPABASE_ANON_KEY);
 
-tvSupabase.auth.onAuthStateChange((_event, session) => {
+tvSupabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    setTimeout(() => {
+      mostrarAuthView('recoveryForm');
+      document.getElementById('recoveryEmail').value = session?.user?.email || '';
+      ativarCamposNovaSenha();
+    }, 0);
+    return;
+  }
   setTimeout(() => aplicarSessao(session), 0);
 });
 
