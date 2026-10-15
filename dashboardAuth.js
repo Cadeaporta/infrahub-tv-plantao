@@ -29,7 +29,7 @@ async function validarUsuarioDashboard(req) {
     const allowedDomains = new Set(['hospitalcare.com.br', 'hospitalveracruz.com.br', 'bragait.com']);
     const emailDomain = email.includes('@') ? email.split('@').pop() : '';
     if (!allowedDomains.has(emailDomain)) {
-      return { ok: false, status: 403, erro: 'use uma conta corporativa @hospitalcare.com.br ou @hospitalveracruz.com.br' };
+      return { ok: false, status: 403, erro: 'use uma conta corporativa @hospitalcare.com.br, @hospitalveracruz.com.br ou @bragait.com' };
     }
 
     const profileUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
