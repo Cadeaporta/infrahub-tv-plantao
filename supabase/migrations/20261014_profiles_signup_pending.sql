@@ -1,28 +1,28 @@
--- New self-registered accounts must be explicitly approved by an administrator.
--- Existing profiles are preserved and are not modified by this trigger.
-create or replace function public.handle_new_infra_user()
+-- Enforce corporate email domains and require manual approval for every new self-registered account.
+-- Existing profiles, including the current administrator, are not modified.
+create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  normalized_email text := pg_catalog.lower(pg_catalog.btrim(coalesce(new.email, '')));
 begin
+  if normalized_email !~ '^[^@]+@(bragait\.com|hospitalcare\.com\.br|hospitalveracruz\.com\.br)$' then
+    raise exception 'Cadastro permitido apenas para e-mails corporativos autorizados';
+  end if;
+
   insert into public.profiles (id, full_name, role, ativo)
   values (
     new.id,
-    nullif(trim(coalesce(new.raw_user_meta_data ->> 'full_name', '')), ''),
+    nullif(pg_catalog.btrim(coalesce(new.raw_user_meta_data ->> 'full_name', '')), ''),
     'tecnico',
     false
-  )
-  on conflict (id) do nothing;
+  );
 
   return new;
 end;
 $$;
 
-revoke all on function public.handle_new_infra_user() from public, anon, authenticated;
-
-drop trigger if exists on_auth_user_created_infra_profile on auth.users;
-create trigger on_auth_user_created_infra_profile
-  after insert on auth.users
-  for each row execute function public.handle_new_infra_user();
+revoke all on function public.handle_new_user() from public, anon, authenticated;
