@@ -80,6 +80,7 @@ A tela de TVs oferece recuperação por código de e-mail e criação de conta. 
 3. Em **Authentication → Email Templates → Confirm signup**, use o token de uso único no conteúdo do e-mail com `{{ .Token }}` (não `{{ .ConfirmationURL }}`).
 4. Em **Authentication → Email Templates → Reset Password**, use também `{{ .Token }}`. O usuário informa esse código na tela, e o código é validado pelo Supabase Auth.
 5. Confira as configurações de expiração e limite de envio de e-mails do projeto. Não desative a confirmação de e-mail para contornar falhas.
+6. Em **Authentication → Security and Protection / Password Security**, habilite a proteção contra senhas vazadas (Have I Been Pwned) e mantenha a política de senha forte. Esse ajuste é de configuração Auth do projeto e precisa ser salvo no painel.
 
 ### Aprovação administrativa
 
