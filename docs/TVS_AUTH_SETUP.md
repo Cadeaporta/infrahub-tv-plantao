@@ -3,8 +3,9 @@
 ## Modelo de acesso
 
 - O login protege somente `/Tvs`; a página Plantão não recebe essa exigência.
-- Não existe cadastro público. Usuários são criados por um administrador no Supabase Auth.
-- Após criar o usuário, deve existir uma linha correspondente em `public.profiles`.
+- A tela permite auto cadastro apenas nos domínios corporativos autorizados.
+- A confirmação de e-mail é obrigatória; o trigger cria automaticamente o perfil como `tecnico` e `ativo = false`.
+- O administrador deve verificar a pessoa e aprovar o perfil manualmente em `public.profiles` antes do primeiro acesso.
 - `role = 'admin'`: acesso administrativo, incluindo cadastro/configuração/exclusão de TVs.
 - `role = 'tecnico'`: apresentado como Operador; pode consultar e enviar comandos operacionais, mas não alterar cadastro nem excluir TVs.
 - `ativo = false`: bloqueia o dashboard mesmo que a conta ainda exista no Auth.
@@ -32,7 +33,7 @@ Não habilite cadastro público e não conceda papel de administrador com base e
    `https://koiiqafjmlnsdkijnwmi.supabase.co/auth/v1/callback`
 2. No Supabase, abra **Authentication → Sign In / Providers → Azure** e habilite o provedor Azure. Informe o Client ID e Client Secret do aplicativo Entra. Se a organização exigir um tenant específico, configure o Tenant URL/ID do tenant corporativo, não o modo multitenant aberto.
 3. No Azure, configure a permissão OIDC `email`, `openid` e `profile`. O botão da tela usa o provedor Supabase `azure` e retorna para `/Tvs/`.
-4. A aplicação permite apenas os domínios `hospitalcare.com.br` e `hospitalveracruz.com.br`, com validação na tela e no backend. O domínio, sozinho, não concede acesso: o usuário também precisa de uma linha ativa em `public.profiles` e um papel autorizado.
+4. A aplicação permite apenas os domínios `hospitalcare.com.br`, `hospitalveracruz.com.br` e `bragait.com`, com validação na tela, no backend e no trigger de cadastro. O domínio, sozinho, não concede acesso: o usuário também precisa de uma linha ativa em `public.profiles` e um papel autorizado.
 5. Adicione a URL oficial e a URL de Preview em **Authentication → URL Configuration → Redirect URLs** do Supabase, conforme os ambientes que serão testados. Não promova Preview para produção para testar o SSO.
 
 O registro no Entra e a configuração de Client ID/Secret são necessários para o botão funcionar. Não coloque o Client Secret em variáveis `NEXT_PUBLIC_*`, HTML ou JavaScript.
