@@ -82,7 +82,7 @@ A tela de TVs oferece recuperação por código de e-mail e criação de conta. 
 
 ### Aprovação administrativa
 
-A migration `supabase/migrations/20261014_profiles_signup_pending.sql` cria um perfil `tecnico` com `ativo = false` automaticamente quando uma nova conta Auth é criada. Ela preserva perfis já existentes. **A migration precisa ser aplicada no projeto Supabase antes de habilitar o cadastro em produção.**
+A migration `supabase/migrations/20261014_profiles_signup_pending.sql` atualiza a função `public.handle_new_user()` já vinculada ao trigger existente. Ela restringe cadastros aos domínios corporativos permitidos e cria cada novo perfil como `tecnico` com `ativo = false`. Não cria um segundo trigger e não altera perfis existentes. A migration já foi aplicada ao projeto Supabase.
 
 Após verificar a identidade e a necessidade de acesso, o administrador pode localizar o usuário em **Authentication → Users** e ativar somente o perfil correspondente em **SQL Editor**, usando o ID do usuário verificado:
 
