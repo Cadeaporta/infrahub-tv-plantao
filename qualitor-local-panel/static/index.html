@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="300">
+<title>Painel de chamados</title>
+<style>
+:root{color-scheme:dark;font-family:Segoe UI,Arial,sans-serif;background:#10151d;color:#e8edf4}
+body{margin:0;padding:22px}header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+h1{font-size:clamp(22px,3vw,34px);margin:0}.muted{color:#9ba9bb;font-size:13px}
+.cards{display:flex;gap:12px;margin:18px 0}.card{background:#1b2532;border:1px solid #2c3b4d;border-radius:10px;padding:14px 18px;min-width:120px}
+.num{font-size:28px;font-weight:700}.status{margin:12px 0;color:#a8bacd}
+table{width:100%;border-collapse:collapse;background:#18212c;border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:12px;border-bottom:1px solid #2a3543;font-size:14px}
+th{color:#a8bacd;font-weight:600;background:#202b39}tr:last-child td{border:0}
+td.title{max-width:40vw;overflow-wrap:anywhere}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#34465b}
+#error{color:#ffb4a8}.refresh{background:#2b6cb0;color:white;border:0;border-radius:8px;padding:9px 14px;cursor:pointer}
+@media(max-width:700px){body{padding:12px}th,td{padding:8px;font-size:12px}.cards{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header><div><h1>Chamados Qualitor</h1><div class="muted">Painel local · somente leitura</div></div><button class="refresh" id="refresh">Atualizar tela</button></header>
+<section class="cards">
+<div class="card"><div class="muted">Exibidos</div><div class="num" id="total">—</div></div>
+<div class="card"><div class="muted">Vencidos (conforme API)</div><div class="num" id="overdue">—</div></div>
+<div class="card"><div class="muted">Sincronizado</div><div class="muted" id="updated">Aguardando…</div></div>
+</section>
+<div class="status" id="status">Carregando dados locais…</div>
+<div id="error"></div>
+<table><thead><tr><th>ID</th><th>Chamado</th><th>Status</th><th>Responsável / equipe</th><th>Prazo</th></tr></thead><tbody id="rows"><tr><td colspan="5">Aguardando primeira consulta ao Qualitor…</td></tr></tbody></table>
+<script>
+const el=id=>document.getElementById(id);
+function value(obj, keys, fallback="—"){for(const k of keys){const v=obj?.[k];if(v!==undefined&&v!==null&&v!=="")return typeof v==="object"?(v.name??v.title??JSON.stringify(v)):v;}return fallback;}
+function fmtDate(v){if(!v||v==="—")return "—";const d=new Date(v);return isNaN(d)?v:d.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"});}
+function render(data){
+ const tickets=Array.isArray(data.tickets)?data.tickets:[];
+ el("total").textContent=tickets.length;
+ el("overdue").textContent=tickets.filter(t=>t.is_overdue===true||t.is_overdue==="true"||t.overdue===true).length;
+ el("updated").textContent=data.last_success?fmtDate(data.last_success):"Nunca";
+ el("status").textContent=data.loading?"Consulta em andamento…":"Atualização automática pelo serviço local.";
+ el("error").textContent=data.error?"Falha/aviso: "+data.error:"";
+ const tbody=el("rows");tbody.replaceChildren();
+ if(!tickets.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=5;td.textContent=data.error?"Sem dados carregados. Confira a configuração/log.":"Nenhum chamado retornado.";tr.append(td);tbody.append(tr);return;}
+ for(const t of tickets){
+  const tr=document.createElement("tr");
+  const cols=[
+   value(t,["id","ticketId","number"]),
+   value(t,["title","subject"]),
+   value(t,["status","step","process"]),
+   value(t,["assignee","team"]),
+   fmtDate(value(t,["due_date","dueDate","deadline"]))
+  ];
+  cols.forEach((v,i)=>{const td=document.createElement("td");if(i===1)td.className="title";td.textContent=String(v);tr.append(td);});
+  tbody.append(tr);
+ }
+}
+async function load(){try{const r=await fetch("/api/status",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);render(await r.json());}catch(e){el("error").textContent="Não foi possível ler o serviço local: "+e;}}
+el("refresh").addEventListener("click",load);
+load();setInterval(load,15000);
+</script>
+</body></html>
